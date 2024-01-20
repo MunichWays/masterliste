@@ -4,7 +4,7 @@ import nodeResolve from '@rollup/plugin-node-resolve';
 export default {
   input: 'main.js',
   output: {
-    file: 'masterliste.js',
+    file: 'dist/main.js',
   },
   plugins: [
     nodeResolve({ preferBuiltins: false }),
