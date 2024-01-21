@@ -9,6 +9,14 @@ import GeoJSON from 'ol/format/GeoJSON';
 import {Stroke, Style} from 'ol/style.js';
 import { transform } from 'ol/proj';
 
+const btnNext = document.getElementById("btn_next");
+const btnSave = document.getElementById("btn_save");
+const infoElement = document.getElementById("info");
+const hoverElement = document.getElementById("hover");
+const hintElement = document.getElementById("hint");
+const rowNumText = document.getElementById("row_num_text");
+let currentRow = 2;
+
 // do oauth
 const hashParams = new Map(window.location.hash.slice(1).split("&").map(part => part.split("=")));
 let accessToken = null;
@@ -65,8 +73,6 @@ map.on('click', (e) => {
     });
 });
 
-const hoverElement = document.getElementById("hover");
-
 map.on('pointermove', (e) => {
   hoverElement.innerHTML = ``;
   map.forEachFeatureAtPixel(e.pixel, (feature) => {
@@ -95,8 +101,6 @@ const fetchSheetRow = async (rowNum = 1) => {
   return rows[0];
 }
 
-// 	munichways_id	osm_id	name_osm	class_bicycle	class_bicycle_org	smoothness	surface	bicycle	highway	lit	width	access	geom	last_updated
-
 const appendSheetRow = async(munichways_id, osm_id, name_osm, class_bicycle, class_bicycle_org, smoothness, surface, bicycle, highway, lit, width, access, geom, last_updated) => {
   const data = {
     range: "osm_class_bicycle!A1:N1",
@@ -117,7 +121,8 @@ const appendSheetRow = async(munichways_id, osm_id, name_osm, class_bicycle, cla
   return response.status == 200;
 }
 
-let currentRow = 2;
+hintElement.innerHTML = "<h2>wird geladen ...</h2>";
+
 const header = await fetchSheetRow(1);
 const cartoIndex = header.indexOf("geom_carto");
 const munichWaysIdIndex = header.indexOf("MunichWays_ID");
@@ -129,7 +134,11 @@ const mapillaryLinkIndex = header.indexOf("Mapillary_Link");
 
 let munichWaysId = null;
 
-async function editNext(row) {
+async function editRow(row) {
+  hintElement.innerHTML = "<h2>wird geladen ...</h2>";
+  rowNumText.value = currentRow - 1;
+  btnNext.disabled = true;
+  btnSave.disabled = true;
   vectorSource.clear();
   baseVectorSource.clear();
 
@@ -141,8 +150,7 @@ async function editNext(row) {
   const beschreibung = dataRow[beschreibungIndex];
   const mapillaryLink = dataRow[mapillaryLinkIndex];
 
-  const infoElement = document.getElementById("info");
-  infoElement.innerHTML = `<h3>Masterlisten Element</h3>
+  infoElement.innerHTML = `<h3>Masterlisten Element #${row - 1}</h3>
   <b>MunichWays_ID</b>:&nbsp;${munichWaysId}<br />
   <b>Name</b>: ${name}<br />
   <b>IST_Situation</b>: ${istSituation}<br />
@@ -205,9 +213,17 @@ async function editNext(row) {
   vectorSource.addFeatures(new GeoJSON().readFeatures(featureCollection, { featureProjection: 'EPSG:3857' }));
   
   map.getView().fit(vectorSource.getExtent());
+
+  btnNext.disabled = false;
+  btnSave.disabled = false;
+  hintElement.innerHTML = "";
 }
 
 async function saveResult() {
+  btnNext.disabled = true;
+  btnSave.disabled = true;
+  hintElement.innerHTML = "wird gespeichert ...";
+
   const selectedSegments = new Map();
   const tags = [];
   vectorSource.forEachFeature((feature) => {
@@ -249,17 +265,23 @@ async function saveResult() {
   const last_updated = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
   appendSheetRow(munichWaysId, osm_id, name_osm, class_bicycle_org, class_bicycle_org, smoothness, surface, bicycle, highway, lit, width, access, geom, last_updated);
   
-  console.log(osm_id, surface);
+  btnNext.disabled = false;
+  btnSave.disabled = false;
+  hintElement.innerHTML = "";
 }
 
-editNext(currentRow);
+editRow(currentRow);
 
-document.getElementById("btn_next").onclick = () => {
+btnNext.onclick = () => {
   currentRow++;
-  editNext(currentRow);
+  editRow(currentRow);
 };
 
-document.getElementById("btn_save").onclick = () => {
+btnSave.onclick = () => {
   saveResult();
 };
 
+rowNumText.onchange = (e) => {
+  currentRow = parseInt(rowNumText.value) + 1;
+  editRow(currentRow);
+};

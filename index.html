@@ -7,14 +7,17 @@
         <div style="display: flex; height:100%;">
             <div style="display: flex; height: 100%; flex-direction: column; flex:1;">
                 <div style="flex: 1" id="map"></div>
-                <div style="height: 30px; display: flex; justify-content: center; padding-top: 5px;">
+                <div style="height: 30px; display: flex; justify-content: center; padding-top: 5px; align-items: center;">
                     <button id="btn_save" type="button">Speichern</button>
-                    <div>&nbsp;</div>
+                    <div style="flex-grow: 1">&nbsp;</div>
                     <button id="btn_next" type="button">Weiter</button>
+                    <div style="margin-left:10px;margin-right:5px;">... oder gehe direkt zu</div>
+                    <input type="text" id="row_num_text" inputmode="numeric" min="1">
                 </div>
             </div>
             <div style="width:20vw; display: flex; flex-direction: column; margin: 0 10px;">
-                <div id="info"><h2>wird geladen ...</h2></div>
+                <div id="hint"></div>
+                <div id="info"></div>
                 <div id="hover"></div>
             </div>
         </div>
