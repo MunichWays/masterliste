@@ -15,7 +15,19 @@ const infoElement = document.getElementById("info");
 const hoverElement = document.getElementById("hover");
 const hintElement = document.getElementById("hint");
 const rowNumText = document.getElementById("row_num_text");
-let currentRow = 2;
+const SOURCE_SHEET_NAME = "webapp";
+const TARGET_SHEET_NAME = "osm_class_bicycle";
+const MUNICHWAYS_ID_INDEX = 0;
+const NAME_INDEX = 1;
+const IST_SITUATION_INDEX = 2;
+const SOLL_MASSNAHMEN_INDEX = 3;
+const BESCHREIBUNG_INDEX = 4;
+const MAPILLARY_LINK_INDEX = 5;
+const CARTO_GEOM_INDEX = 6;
+const OSM_ID_INDEX = 7;
+const OSM_SHEET_ROW_INDEX = 8;
+
+let currentRow = 1;
 
 // do oauth
 const hashParams = new Map(window.location.hash.slice(1).split("&").map(part => part.split("=")));
@@ -90,7 +102,7 @@ map.on('pointermove', (e) => {
 })
 
 const fetchSheetRow = async (rowNum = 1) => {
-  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/1PZ_4oEh7ycMILtyvlzan2lax4qjPPQeQLvmxTJbDpds/values/Ma%C3%9Fnahmen!${rowNum}:${rowNum}`,
+  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/1PZ_4oEh7ycMILtyvlzan2lax4qjPPQeQLvmxTJbDpds/values/${SOURCE_SHEET_NAME}!${rowNum}:${rowNum}`,
   {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -109,7 +121,7 @@ const appendSheetRow = async(munichways_id, osm_id, name_osm, class_bicycle, cla
       [munichways_id, osm_id, name_osm, class_bicycle, class_bicycle_org, smoothness, surface, bicycle, highway, lit, width, access, geom, last_updated],
     ],
   };
-  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/1PZ_4oEh7ycMILtyvlzan2lax4qjPPQeQLvmxTJbDpds/values/osm_class_bicycle!A1:N1:append?valueInputOption=RAW`,
+  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/1PZ_4oEh7ycMILtyvlzan2lax4qjPPQeQLvmxTJbDpds/values/${TARGET_SHEET_NAME}!A1:N1:append?valueInputOption=RAW`,
   {
     method: 'POST',
     body: JSON.stringify(data),
@@ -123,32 +135,27 @@ const appendSheetRow = async(munichways_id, osm_id, name_osm, class_bicycle, cla
 
 hintElement.innerHTML = "<h2>wird geladen ...</h2>";
 
-const header = await fetchSheetRow(1);
-const cartoIndex = header.indexOf("geom_carto");
-const munichWaysIdIndex = header.indexOf("MunichWays_ID");
-const nameIndex = header.indexOf("Name");
-const isSituationIndex = header.indexOf("IST_Situation");
-const sollMassnahmenIndex = header.indexOf("SOLL_Massnahmen");
-const beschreibungIndex = header.indexOf("Beschreibung");
-const mapillaryLinkIndex = header.indexOf("Mapillary_Link");
 
 let munichWaysId = null;
 
 async function editRow(row) {
   hintElement.innerHTML = "<h2>wird geladen ...</h2>";
-  rowNumText.value = currentRow - 1;
+  rowNumText.value = row;
   btnNext.disabled = true;
   btnSave.disabled = true;
+  rowNumText.disabled = true;
   vectorSource.clear();
   baseVectorSource.clear();
 
   const dataRow = await fetchSheetRow(row);
-  munichWaysId = dataRow[munichWaysIdIndex];
-  const name = dataRow[nameIndex];
-  const istSituation = dataRow[isSituationIndex];
-  const sollMassnahmen = dataRow[sollMassnahmenIndex];
-  const beschreibung = dataRow[beschreibungIndex];
-  const mapillaryLink = dataRow[mapillaryLinkIndex];
+  munichWaysId = dataRow[MUNICHWAYS_ID_INDEX];
+  const name = dataRow[NAME_INDEX];
+  const istSituation = dataRow[IST_SITUATION_INDEX];
+  const sollMassnahmen = dataRow[SOLL_MASSNAHMEN_INDEX];
+  const beschreibung = dataRow[BESCHREIBUNG_INDEX];
+  const mapillaryLink = dataRow[MAPILLARY_LINK_INDEX];
+  const osmId = dataRow[OSM_ID_INDEX];
+  const osmSheetRow = dataRow[OSM_SHEET_ROW_INDEX];
 
   infoElement.innerHTML = `<h3>Masterlisten Element #${row - 1}</h3>
   <b>MunichWays_ID</b>:&nbsp;${munichWaysId}<br />
@@ -156,11 +163,23 @@ async function editRow(row) {
   <b>IST_Situation</b>: ${istSituation}<br />
   <b>SOLL_Massnahmen</b>: ${sollMassnahmen}<br />
   <b>Beschreibung</b>: ${beschreibung}<br />`;
-  if (mapillaryLink.trim().length > 0) {
-    infoElement.innerHTML += `<a href="${mapillaryLink}" target="_blank">In Mapillary öffnen</a>`;
+  if (mapillaryLink?.trim().length > 0) {
+    infoElement.innerHTML += `<a href="${mapillaryLink}" target="_blank">In Mapillary öffnen</a><br />`;
+  }
+  if (osmId?.trim().length > 0) {
+    infoElement.innerHTML += `☑️ wurde bereits bearbeitet (Zeile ${osmSheetRow})`;
+  } else {
+    infoElement.innerHTML += `˟ wurde noch nicht bearbeitet`;
   }
 
-  const lineStringIn = dataRow[cartoIndex];
+  const lineStringIn = dataRow[CARTO_GEOM_INDEX];
+  if (lineStringIn == null || lineStringIn.trim() == "") {
+    btnNext.disabled = false;
+    btnSave.disabled = true;
+    rowNumText.disabled = false;
+    hintElement.innerHTML = "<h2>keine Carto Daten!</h2>";
+    return;
+  }
   const coorString = lineStringIn.replace("LINESTRING(", "").replace(")", "");
   const coordPairs = coorString.split(",");
   const coordinates = coordPairs.map(pair => pair.trim().split(" ").map(coord => parseFloat(coord)));
@@ -198,13 +217,17 @@ async function editRow(row) {
       const [segmentStart, segmentEnd] = way.geometry.slice(i - 1, i + 1).map(c => [c.lon, c.lat]);
       const distanceStart = turf.pointToLineDistance(segmentStart, lineString, {units: 'meters'});
       const distanceEnd = turf.pointToLineDistance(segmentEnd, lineString, {units: 'meters'});
+      const [startNode, endNode] = way.nodes.slice(i - 1, i + 1);
+      console.log(osmId, startNode, endNode);
       featureCollection.features.push({
         type: 'Feature',
         properties: {
-          matched: distanceStart < 2 && distanceEnd < 2,
+          matched: osmId != null ?
+            osmId.includes(`node/${startNode}`) && osmId.includes(`node/${endNode}`) :
+            distanceStart < 2 && distanceEnd < 2,
           way: way.id,
           tags: way.tags,
-          nodes: way.nodes.slice(i - 1, i + 1),
+          nodes: [startNode, endNode],
         },
         geometry: {type: 'LineString', coordinates: [segmentStart, segmentEnd]}});
     }
@@ -215,13 +238,15 @@ async function editRow(row) {
   map.getView().fit(vectorSource.getExtent());
 
   btnNext.disabled = false;
-  btnSave.disabled = false;
+  btnSave.disabled = osmId != null;
+  rowNumText.disabled = false;
   hintElement.innerHTML = "";
 }
 
 async function saveResult() {
   btnNext.disabled = true;
   btnSave.disabled = true;
+  rowNumText.disabled = true;
   hintElement.innerHTML = "wird gespeichert ...";
 
   const selectedSegments = new Map();
@@ -261,12 +286,13 @@ async function saveResult() {
       featureLineStrings.push(featureLineString);
     }
   });
-  const geom = `MULITLINESTRING(${featureLineStrings.join(",")})`;
+  const geom = `MULTILINESTRING(${featureLineStrings.join(",")})`;
   const last_updated = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
   appendSheetRow(munichWaysId, osm_id, name_osm, class_bicycle_org, class_bicycle_org, smoothness, surface, bicycle, highway, lit, width, access, geom, last_updated);
   
   btnNext.disabled = false;
   btnSave.disabled = false;
+  rowNumText.disabled = false;
   hintElement.innerHTML = "";
 }
 
@@ -282,6 +308,12 @@ btnSave.onclick = () => {
 };
 
 rowNumText.onchange = (e) => {
-  currentRow = parseInt(rowNumText.value) + 1;
+  let temp = currentRow;
+  currentRow = parseInt(rowNumText.value);
+  if (isNaN(currentRow)) {
+    currentRow = temp;
+    rowNumText.value = currentRow;
+    return;
+  }
   editRow(currentRow);
 };
