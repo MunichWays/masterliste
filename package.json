@@ -11,7 +11,8 @@
   "license": "ISC",
   "dependencies": {
     "@turf/turf": "^6.5.0",
-    "ol": "^8.2.0"
+    "ol": "^8.2.0",
+    "osm-read": "^0.7.0"
   },
   "type": "module",
   "devDependencies": {
