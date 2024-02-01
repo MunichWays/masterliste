@@ -65,19 +65,20 @@ if (!existsSync("map.osm.pbf")) {
 }
 
 // extracting relevant ways
-console.log("PASS 1: extracting bicycle ways from OSM ...")
+process.stdout.write("PASS 1: extracting bicycle ways from OSM ")
 const bicycleWays = [];
 const nodeRefs = new Map();
+let wayCount = 0;
 await new Promise((resolve) => {
     osmRead.parse({
         filePath: "map.osm.pbf",
         way: (way) => {
-            const matchedFeatures = wayIdToMunichways.get(parseInt(way.id));
-            if (matchedFeatures) {
-                console.log("found way with matched feature!");
+            if (wayCount++ % 10000 === 0) {
+                process.stdout.write(".");
             }
+            const matchedFeatures = wayIdToMunichways.get(parseInt(way.id));
             if (way.tags && (way.tags["class:bicycle"] || matchedFeatures)) {
-                way.munichways = matchedFeatures;
+                way.munichways = matchedFeatures || [];
                 bicycleWays.push(way);
                 for (const nodeRef of way.nodeRefs) {
                     nodeRefs.set(nodeRef, null);
@@ -86,23 +87,46 @@ await new Promise((resolve) => {
         },
         endDocument: resolve,
     })
-})
+});
+console.log("")
 console.log("loaded", bicycleWays.length, "bicycle ways.")
 
 // extracting relevant nodes
-console.log("PASS 2: extracting relevant node information from OSM ...")
+process.stdout.write("PASS 2: extracting relevant node information from OSM ")
+let nodeCount = 0;
 await new Promise((resolve) => {
     osmRead.parse({
         filePath: "map.osm.pbf",
         node: (node) => {
+            if (nodeCount++ % 50000 === 0) {
+                process.stdout.write(".");
+            }
             if (nodeRefs.has(node.id)) {
                 nodeRefs.set(node.id, node);
             }
         },
         endDocument: resolve,
     })
-})
+});
+console.log("")
 console.log("loaded", [...nodeRefs.keys()].length, "nodes.");
+
+function translateMunichwaysColor(mwColor) {
+    switch (mwColor) {
+        case "schwarz":
+            return "black";
+        case "rot":
+            return "red";
+        case "gelb":
+            return "yellow";
+        case "grün":
+            return "green";
+        case "grau":
+            return "grey";
+        default:
+            return "blue";
+    }
+}
 
 function translateClassBicycle(clBicycle) {
     switch (clBicycle) {
@@ -134,22 +158,22 @@ for (const way of bicycleWays) {
             coordinates: way.nodeRefs.map((nodeRef) => nodeRefs.get(nodeRef)).map((node) => [node.lon, node.lat]),
         },
         properties: {
-            color: translateClassBicycle(way.tags["class:bicycle"]),
+            color: way.tags["class:bicycle"] ? translateClassBicycle(way.tags["class:bicycle"]) : way.munichways.length > 0 ? translateMunichwaysColor(way.munichways[0].properties.munichways_color) : "blue",
             class_bicycle: way.tags["class:bicycle"],
             smoothness: way.tags["smoothness"],
             surface: way.tags["surface"],
             bicycle: way.tags["bicycle"],
             lit: way.tags["lit"],
             access: way.tags["access"],
-            munichways: way.munichways?.map(mw => ({
-                id: mw.properties.munichways_id,
-                name: mw.properties.munichways_name,
-                description: mw.properties.munichways_description,
-                current: mw.properties.munichways_current,
-                target: mw.properties.munichways_target,
-                mapillary_link: mw.properties.munichways_mapillary_link,
-                color: mw.properties.munichways_color,
-            })),
+            ...way.munichways.length > 0 ? {
+                munichways_ids: [...new Set(way.munichways.map(mw => mw.properties.munichways_id))].join(","),
+                munichways_names: [...new Set(way.munichways.map(mw => mw.properties.munichways_name))].join(","),
+                munichways_colors: [...new Set(way.munichways.map(mw => mw.properties.munichways_color))].join(","),
+                munichways_current: way.munichways.map(mw => mw.properties.munichways_current).join(","),
+                munichways_target: way.munichways.map(mw => mw.properties.munichways_target).join(","),
+                munichways_description: way.munichways.map(mw => mw.properties.munichways_description).join(","),
+                munichways_mapillary_links: way.munichways.map(mw => mw.properties.munichways_mapillary_link).join(","),
+            } : {},
         }
     });
 }
