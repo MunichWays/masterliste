@@ -158,12 +158,13 @@ for (const way of bicycleWays) {
             coordinates: way.nodeRefs.map((nodeRef) => nodeRefs.get(nodeRef)).map((node) => [node.lon, node.lat]),
         },
         properties: {
+            osm_id: way.id,
             color: way.tags["class:bicycle"] ? translateClassBicycle(way.tags["class:bicycle"]) : way.munichways.length > 0 ? translateMunichwaysColor(way.munichways[0].properties.munichways_color) : "blue",
-            class_bicycle: way.tags["class:bicycle"],
-            smoothness: way.tags["smoothness"],
-            surface: way.tags["surface"],
-            bicycle: way.tags["bicycle"],
-            lit: way.tags["lit"],
+            osm_class_bicycle: way.tags["class:bicycle"],
+            osm_smoothness: way.tags["smoothness"],
+            osm_surface: way.tags["surface"],
+            osm_bicycle: way.tags["bicycle"],
+            osm_lit: way.tags["lit"],
             access: way.tags["access"],
             ...way.munichways.length > 0 ? {
                 munichways_ids: [...new Set(way.munichways.map(mw => mw.properties.munichways_id))].join(","),
