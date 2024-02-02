@@ -247,6 +247,7 @@ async function editRow(row) {
   infoElement.innerHTML = `<h3>Masterlisten Element #${row - 1}</h3>
   <b>MunichWays_ID</b>:&nbsp;${munichwaysId}<br />
   <b>Name</b>: ${munichwaysName}<br />
+  <b>Farbe</b>: ${munichwaysFarbe}<br />
   <b>IST_Situation</b>: ${munichwaysIst}<br />
   <b>SOLL_Massnahmen</b>: ${munichwaysSoll}<br />
   <b>Beschreibung</b>: ${munichwaysBeschreibung}<br />`;
