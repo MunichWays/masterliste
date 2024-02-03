@@ -169,11 +169,21 @@ for (const way of bicycleWays) {
             ...way.munichways.length > 0 ? {
                 munichways_id: [...new Set(way.munichways.map(mw => mw.properties.munichways_id))].join(","),
                 munichways_name: [...new Set(way.munichways.map(mw => mw.properties.munichways_name))].join(","),
+                munichways_happy_bike_level: [...new Set(way.munichways.map(mw => mw.properties.munichways_happy_bike_level))].join(","),
                 munichways_color: [...new Set(way.munichways.map(mw => mw.properties.munichways_color))].join(","),
+                munichways_mapillary_link: way.munichways.map(mw => mw.properties.munichways_mapillary_link).join(","),
+                // munichways_route: [...new Set(way.munichways.map(mw => mw.properties.munichways_route))].join(","),
+                // munichways_net_type_plan: [...new Set(way.munichways.map(mw => mw.properties.munichways_net_type_plan))].join(","),
+                // munichways_net_type_target: [...new Set(way.munichways.map(mw => mw.properties.munichways_net_type_target))].join(","),
                 munichways_current: way.munichways.map(mw => mw.properties.munichways_current).join(","),
                 munichways_target: way.munichways.map(mw => mw.properties.munichways_target).join(","),
+                // munichways_measure_category: [...new Set(way.munichways.map(mw => mw.properties.munichways_measure_category))].join(","),
                 munichways_description: way.munichways.map(mw => mw.properties.munichways_description).join(","),
-                munichways_mapillary_link: way.munichways.map(mw => mw.properties.munichways_mapillary_link).join(","),
+                // status_umsetzung
+                // status_umsetzung
+                // bezirk_link
+                // Neuralgischer_Punkt
+                // links
             } : {},
         }
     });
