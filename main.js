@@ -26,6 +26,7 @@ const SOLL_MASSNAHMEN_INDEX = 4;
 const BESCHREIBUNG_INDEX = 5;
 const MAPILLARY_LINK_INDEX = 6;
 const CARTO_GEOM_INDEX = 7;
+const HAPPY_BIKE_LEVEL_INDEX = 10;
 
 const FOLDER_ID = "1bbPddqZ4heiq5Zpg0CAGedItJ3b_s6OW";
 
@@ -202,6 +203,7 @@ let munichwaysId = null;
 let munichwaysName = null;
 let munichwaysIst = null;
 let munichwaysFarbe = null;
+let munichwaysHappyBikeLevel = null;
 let munichwaysSoll = null;
 let munichwaysBeschreibung = null;
 let munichwaysMapillaryLink = null;
@@ -221,6 +223,7 @@ async function editRow(row) {
   munichwaysName = dataRow[NAME_INDEX];
   munichwaysIst = dataRow[IST_SITUATION_INDEX];
   munichwaysFarbe = dataRow[FARBE_INDEX];
+  munichwaysHappyBikeLevel = dataRow[HAPPY_BIKE_LEVEL_INDEX];
   munichwaysSoll = dataRow[SOLL_MASSNAHMEN_INDEX];
   munichwaysBeschreibung = dataRow[BESCHREIBUNG_INDEX];
   munichwaysMapillaryLink = dataRow[MAPILLARY_LINK_INDEX];
@@ -248,6 +251,7 @@ async function editRow(row) {
   <b>MunichWays_ID</b>:&nbsp;${munichwaysId}<br />
   <b>Name</b>: ${munichwaysName}<br />
   <b>Farbe</b>: ${munichwaysFarbe}<br />
+  <b>Happy Bike Level</b>: ${munichwaysHappyBikeLevel}<br />
   <b>IST_Situation</b>: ${munichwaysIst}<br />
   <b>SOLL_Massnahmen</b>: ${munichwaysSoll}<br />
   <b>Beschreibung</b>: ${munichwaysBeschreibung}<br />`;
@@ -355,11 +359,20 @@ async function saveResult() {
           osm_id: feature.get("way"),
           munichways_id: munichwaysId,
           munichways_name: munichwaysName,
-          munichways_description: munichwaysBeschreibung,
+          munichways_happy_bike_level: munichwaysHappyBikeLevel,
+          munichways_color: munichwaysFarbe,
+          munichways_mapillary_link: munichwaysMapillaryLink,
+          // munichways_route: munichwaysStrecke,
+          // munichways_net_type_plan: munichwaysNetztypPlan,
+          // munichways_net_type_target: munichwaysNetztypZiel,
           munichways_current: munichwaysIst,
           munichways_target: munichwaysSoll,
-          munichways_mapillary_link: munichwaysMapillaryLink,
-          munichways_color: munichwaysFarbe,
+          // munichways_measure_category: munichwaysMassnahmen_Kategorie,
+          munichways_description: munichwaysBeschreibung,
+          // status_umsetzung
+          // bezirk_link
+          // Neuralgischer_Punkt
+          // links
         }
       };
       featureCollection.features.push(geoJson);
