@@ -167,13 +167,13 @@ for (const way of bicycleWays) {
             osm_lit: way.tags["lit"],
             access: way.tags["access"],
             ...way.munichways.length > 0 ? {
-                munichways_ids: [...new Set(way.munichways.map(mw => mw.properties.munichways_id))].join(","),
-                munichways_names: [...new Set(way.munichways.map(mw => mw.properties.munichways_name))].join(","),
-                munichways_colors: [...new Set(way.munichways.map(mw => mw.properties.munichways_color))].join(","),
+                munichways_id: [...new Set(way.munichways.map(mw => mw.properties.munichways_id))].join(","),
+                munichways_name: [...new Set(way.munichways.map(mw => mw.properties.munichways_name))].join(","),
+                munichways_color: [...new Set(way.munichways.map(mw => mw.properties.munichways_color))].join(","),
                 munichways_current: way.munichways.map(mw => mw.properties.munichways_current).join(","),
                 munichways_target: way.munichways.map(mw => mw.properties.munichways_target).join(","),
                 munichways_description: way.munichways.map(mw => mw.properties.munichways_description).join(","),
-                munichways_mapillary_links: way.munichways.map(mw => mw.properties.munichways_mapillary_link).join(","),
+                munichways_mapillary_link: way.munichways.map(mw => mw.properties.munichways_mapillary_link).join(","),
             } : {},
         }
     });
@@ -182,7 +182,7 @@ const geoJson = {
     type: "FeatureCollection",
     features,
 }
-console.log("writing output file munichways.json ...");
-writeFileSync("./munichways.json", JSON.stringify(geoJson));
+console.log("writing output file IST_RadlVorrangNetz_MunichWays_V20.geojson ...");
+writeFileSync("./IST_RadlVorrangNetz_MunichWays_V20.geojson", JSON.stringify(geoJson));
 
 console.log("done!")
