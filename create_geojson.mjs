@@ -18,21 +18,35 @@ async function retrieveFileById(id) {
     return fileResponse.json();
 }
 
-const query = `'${FOLDER_ID}' in parents and trashed=false`;
-const filesResponse = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}`, {
-  headers: {
-    "Authorization": `Bearer ${TOKEN}`,
-  },
-});
-if (filesResponse.status > 400) {
-    console.error("Zugangstoken ist nicht mehr gültig!")
-    process.exit(-1);
-}
-const {files} = await filesResponse.json();
-const featureCollections = await Promise.all(files.map(f => f.id).map(retrieveFileById));
-const allFeatures = featureCollections.flatMap(fc => fc.features);
+process.stdout.write("Retrieving annotations from Google Drive ");
+let allFeatures = []
+let continuationToken = null;
+do {
+    const query = `'${FOLDER_ID}' in parents and trashed=false`;
+    const url = continuationToken == null ?
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}` :
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&pageToken=${continuationToken}`;
+    const filesResponse = await fetch(url, {
+    headers: {
+        "Authorization": `Bearer ${TOKEN}`,
+    },
+    });
+    if (filesResponse.status > 400) {
+        console.error("Zugangstoken ist nicht mehr gültig!")
+        process.exit(-1);
+    }
+    const {files, nextPageToken} = await filesResponse.json();
+    continuationToken = nextPageToken;
 
-console.log(`loaded ${allFeatures.length} features from Google Drive.`)
+    const featureCollections = await Promise.all(files.map(f => f.id).map(retrieveFileById));
+    const featuresList = featureCollections.flatMap(fc => fc.features);
+    allFeatures = allFeatures.concat(featuresList);
+
+    process.stdout.write(".");
+} while (continuationToken);
+
+console.log("");
+console.log("loaded", allFeatures.length, "features from Google Drive.")
 
 const wayIdToMunichways = new Map();
 allFeatures.forEach(f => {
