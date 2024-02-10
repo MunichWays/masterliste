@@ -1,4 +1,5 @@
 /node_modules
 /dist
 munichways.json
+/cache
 map.osm.pbf

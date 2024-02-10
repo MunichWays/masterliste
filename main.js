@@ -6,8 +6,10 @@ import XYZ from 'ol/source/XYZ';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import GeoJSON from 'ol/format/GeoJSON';
-import {Stroke, Style} from 'ol/style.js';
+import { Stroke, Style } from 'ol/style.js';
 import { transform } from 'ol/proj';
+
+const AUTOPILOT = false;
 
 const linkShowToken = document.getElementById("link_show_token");
 const btnNext = document.getElementById("btn_next");
@@ -27,6 +29,15 @@ const BESCHREIBUNG_INDEX = 5;
 const MAPILLARY_LINK_INDEX = 6;
 const CARTO_GEOM_INDEX = 7;
 const HAPPY_BIKE_LEVEL_INDEX = 10;
+const LINKS_INDEX = 11;
+const MW_RV_STRECKE_INDEX = 12;
+const NETZTYP_PLAN_INDEX = 13;
+const NETZTYP_ZIEL_INDEX = 14;
+const STATUS_UMSETZUNG_INDEX = 15;
+const NEURALGISCHER_PUNKT_INDEX = 16;
+const MASSNAHMEN_KATEGORIE_LINK_INDEX = 18;
+const STRECKEN_LINK_INDEX = 19;
+const BEZIRK_LINK_INDEX = 20;
 
 const FOLDER_ID = "1bbPddqZ4heiq5Zpg0CAGedItJ3b_s6OW";
 
@@ -207,6 +218,15 @@ let munichwaysHappyBikeLevel = null;
 let munichwaysSoll = null;
 let munichwaysBeschreibung = null;
 let munichwaysMapillaryLink = null;
+let munichwaysStreckenLink = null;
+let munichwaysNetztypPlan = null;
+let munichwaysNetztypZiel = null;
+let munichwaysMassnahmenKategorieLink = null;
+let munichwaysStatusUmsetzung = null;
+let munichwaysBezirkLink = null;
+let munichwaysNeuralgischerPunkt = null;
+let munichwaysLinks = null;
+let munichwaysMwRvStrecke = null;
 let existingFileId = null;
 
 async function editRow(row) {
@@ -227,6 +247,15 @@ async function editRow(row) {
   munichwaysSoll = dataRow[SOLL_MASSNAHMEN_INDEX];
   munichwaysBeschreibung = dataRow[BESCHREIBUNG_INDEX];
   munichwaysMapillaryLink = dataRow[MAPILLARY_LINK_INDEX];
+  munichwaysStreckenLink = dataRow[STRECKEN_LINK_INDEX];
+  munichwaysNetztypPlan = dataRow[NETZTYP_PLAN_INDEX];
+  munichwaysNetztypZiel = dataRow[NETZTYP_ZIEL_INDEX];
+  munichwaysMassnahmenKategorieLink = dataRow[MASSNAHMEN_KATEGORIE_LINK_INDEX];
+  munichwaysStatusUmsetzung = dataRow[STATUS_UMSETZUNG_INDEX];
+  munichwaysBezirkLink = dataRow[BEZIRK_LINK_INDEX];
+  munichwaysNeuralgischerPunkt = dataRow[NEURALGISCHER_PUNKT_INDEX];
+  munichwaysLinks = dataRow[LINKS_INDEX];
+  munichwaysMwRvStrecke = dataRow[MW_RV_STRECKE_INDEX];
 
   const query = `name='${munichwaysId}.json' and '${FOLDER_ID}' in parents and trashed=false`;
   const filesResponse = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}`, {
@@ -252,6 +281,7 @@ async function editRow(row) {
   <b>Name</b>: ${munichwaysName}<br />
   <b>Farbe</b>: ${munichwaysFarbe}<br />
   <b>Happy Bike Level</b>: ${munichwaysHappyBikeLevel}<br />
+  <b>MW RV Strecke</b>: ${munichwaysMwRvStrecke}<br />
   <b>IST_Situation</b>: ${munichwaysIst}<br />
   <b>SOLL_Massnahmen</b>: ${munichwaysSoll}<br />
   <b>Beschreibung</b>: ${munichwaysBeschreibung}<br />`;
@@ -272,6 +302,12 @@ async function editRow(row) {
     hintElement.innerHTML = "<h2>keine Carto Daten!</h2>";
     return;
   }
+  if (lineStringIn.indexOf("MULTI") >= 0) {
+    btnNext.disabled = false;
+    btnSave.disabled = true;
+    rowNumText.disabled = false;
+    return;
+  }
   const coorString = lineStringIn.replace("LINESTRING(", "").replace(")", "");
   const coordPairs = coorString.split(",");
   const coordinates = coordPairs.map(pair => pair.trim().split(" ").map(coord => parseFloat(coord)));
@@ -284,7 +320,14 @@ async function editRow(row) {
       }
   };
   baseVectorSource.addFeature(new GeoJSON().readFeature(lineString, { featureProjection: 'EPSG:3857' }));
-  map.getView().fit(baseVectorSource.getExtent());
+  try {
+    map.getView().fit(baseVectorSource.getExtent());
+  } catch (ignored) {
+    btnNext.disabled = false;
+    btnSave.disabled = true;
+    rowNumText.disabled = false;
+    return;
+  }
   
   const buffered_ls = turf.buffer(lineString, 10, {units: 'meters'});
   const poly_str = buffered_ls.geometry.coordinates.flat().map(([lat, lon]) => [lon, lat]).flat().join(" ");
@@ -315,7 +358,9 @@ async function editRow(row) {
     featureCollection.features.push({
       type: 'Feature',
       properties: {
-        matched: previouslyMatchedOsmIds != null ? previouslyMatchedOsmIds.includes(way.id) : (distances.reduce((a, b) => a + b, 0) / distances.length) < 2,
+        matched: previouslyMatchedOsmIds != null ?
+          previouslyMatchedOsmIds.includes(way.id) :
+          (distances.reduce((a, b) => a + b, 0) / distances.length) < 2,
         way: way.id,
         tags: way.tags,
         nodes: way.nodes,
@@ -362,17 +407,18 @@ async function saveResult() {
           munichways_happy_bike_level: munichwaysHappyBikeLevel,
           munichways_color: munichwaysFarbe,
           munichways_mapillary_link: munichwaysMapillaryLink,
-          // munichways_route: munichwaysStrecke,
-          // munichways_net_type_plan: munichwaysNetztypPlan,
-          // munichways_net_type_target: munichwaysNetztypZiel,
+          munichways_route_link: munichwaysStreckenLink,
+          munichways_net_type_plan: munichwaysNetztypPlan,
+          munichways_net_type_target: munichwaysNetztypZiel,
           munichways_current: munichwaysIst,
           munichways_target: munichwaysSoll,
-          // munichways_measure_category: munichwaysMassnahmen_Kategorie,
+          munichways_measure_category_link: munichwaysMassnahmenKategorieLink,
           munichways_description: munichwaysBeschreibung,
-          // status_umsetzung
-          // bezirk_link
-          // Neuralgischer_Punkt
-          // links
+          munichways_status_implementation: munichwaysStatusUmsetzung,
+          munichways_district_link: munichwaysBezirkLink,
+          munichways_neuralgic_point: munichwaysNeuralgischerPunkt,
+          munichways_links: munichwaysLinks,
+          munichways_mw_rv_route: munichwaysMwRvStrecke,
         }
       };
       featureCollection.features.push(geoJson);
@@ -395,13 +441,25 @@ async function saveResult() {
 
 editRow(currentRow);
 
-btnNext.onclick = () => {
+btnNext.onclick = async () => {
   currentRow++;
-  editRow(currentRow);
+  await editRow(currentRow);
+
+  if (AUTOPILOT) {
+    if (!btnNext.disabled && btnSave.disabled) {
+      btnNext.click();
+    } else {
+      btnSave.click();
+    }
+  }
 };
 
-btnSave.onclick = () => {
-  saveResult();
+btnSave.onclick = async () => {
+  await saveResult();
+
+  if (AUTOPILOT) {
+    btnNext.click();
+  }
 };
 
 rowNumText.onchange = (e) => {

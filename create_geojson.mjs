@@ -1,21 +1,110 @@
-import {createWriteStream, existsSync, writeFileSync} from 'fs';
+import {createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync} from 'fs';
 import osmRead from 'osm-read';
 
 const TOKEN = process.argv[2];
 const FOLDER_ID = '1bbPddqZ4heiq5Zpg0CAGedItJ3b_s6OW';
+const SHEET_NAME = 'webapp';
 
 if (TOKEN == null) {
     console.error("Benötigt Zugangstoken als ersten Parameter.")
     process.exit(-1);
 }
 
+if (!existsSync("cache")) {
+    mkdirSync("cache");
+}
+
+const fetchSheetRows = async (startRow = 1, numRows = 100) => {
+    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/1PZ_4oEh7ycMILtyvlzan2lax4qjPPQeQLvmxTJbDpds/values/${SHEET_NAME}!${startRow}:${startRow + numRows}`,
+    {
+      headers: {
+        'Authorization': `Bearer ${TOKEN}`,
+      },
+    });
+    if (response.status != 200) {
+        throw new Error(response.status + (await response.text()))
+    }
+    const data = await response.json();
+    const rows = data.values;
+    return rows;
+};
+
+const batchSize = 1000;
+let currentIndex = 1;
+const munichWaysInfoById = new Map();
+process.stdout.write("Loading Masterliste from Google Drive ");
+let rowsReturned = 0;
+do {
+    const rows = await fetchSheetRows(currentIndex, batchSize);
+    rowsReturned = rows.length;
+    for (const row of rows) {
+        const [
+            id,
+            name,
+            ist_situation,
+            farbe,
+            soll_massnahmen,
+            beschreibung,
+            mapillary_link,
+            ,,,
+            happy_bike_level,
+            links,
+            mw_rv_strecke,
+            netztyp_plan,
+            netztyp_ziel,
+            status_umsetzung,
+            neuralgischer_punkt,
+            strassenansicht_klick_mich,
+            massnahmen_kategorie_link,
+            strecken_link,
+            bezirk_link
+        ] = row;
+        munichWaysInfoById.set(id, {
+            id,
+            name,
+            ist_situation,
+            farbe,
+            soll_massnahmen,
+            beschreibung,
+            mapillary_link,
+            happy_bike_level,
+            links,
+            mw_rv_strecke,
+            netztyp_plan,
+            netztyp_ziel,
+            status_umsetzung,
+            neuralgischer_punkt,
+            strassenansicht_klick_mich,
+            massnahmen_kategorie_link,
+            strecken_link,
+            bezirk_link
+        });
+    }
+    process.stdout.write(".");
+    currentIndex += batchSize;
+} while (rowsReturned >= batchSize)
+console.log();
+console.log("loaded", munichWaysInfoById.size, "rows from sheet", SHEET_NAME, "of document Masterliste.");
+console.log()
+
 async function retrieveFileById(id) {
+    const filePath = `cache/${id}`;
+    try {
+        if (existsSync(filePath)) {
+            return JSON.parse(readFileSync(filePath).toString("utf-8"));
+        }
+    } catch (e) {
+        console.error(e);
+        console.log(`could not read cached file ${filePath}, will retrieve online version ...`);
+    }
     const fileResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`, {
       headers: {
         "Authorization": `Bearer ${TOKEN}`,
       },  
     });
-    return fileResponse.json();
+    const content = await fileResponse.text();
+    writeFileSync(filePath, content);
+    return JSON.parse(content);
 }
 
 process.stdout.write("Retrieving annotations from Google Drive ");
@@ -45,8 +134,9 @@ do {
     process.stdout.write(".");
 } while (continuationToken);
 
-console.log("");
+console.log();
 console.log("loaded", allFeatures.length, "features from Google Drive.")
+console.log()
 
 const wayIdToMunichways = new Map();
 allFeatures.forEach(f => {
@@ -77,9 +167,10 @@ if (!existsSync("map.osm.pbf")) {
 } else {
     console.log("OSM data already exists, skipping download.");
 }
+console.log()
 
 // extracting relevant ways
-process.stdout.write("PASS 1: extracting bicycle ways from OSM ")
+process.stdout.write("OSM - PASS 1: extracting bicycle ways ")
 const bicycleWays = [];
 const nodeRefs = new Map();
 let wayCount = 0;
@@ -102,11 +193,12 @@ await new Promise((resolve) => {
         endDocument: resolve,
     })
 });
-console.log("")
+console.log()
 console.log("loaded", bicycleWays.length, "bicycle ways.")
+console.log()
 
 // extracting relevant nodes
-process.stdout.write("PASS 2: extracting relevant node information from OSM ")
+process.stdout.write("OSM - PASS 2: extracting relevant node information ")
 let nodeCount = 0;
 await new Promise((resolve) => {
     osmRead.parse({
@@ -122,8 +214,9 @@ await new Promise((resolve) => {
         endDocument: resolve,
     })
 });
-console.log("")
+console.log()
 console.log("loaded", [...nodeRefs.keys()].length, "nodes.");
+console.log()
 
 function translateMunichwaysColor(mwColor) {
     switch (mwColor) {
@@ -165,6 +258,8 @@ function translateClassBicycle(clBicycle) {
 console.log("building GeoJSON for combined data ...");
 const features = [];
 for (const way of bicycleWays) {
+    const munichWaysIds = [...new Set(way.munichways.map(mw => mw.properties.munichways_id))];
+    const mwInfos = munichWaysIds.map(id => munichWaysInfoById.get(id));
     features.push({
         type: "Feature",
         geometry: {
@@ -173,32 +268,35 @@ for (const way of bicycleWays) {
         },
         properties: {
             osm_id: way.id,
-            color: way.tags["class:bicycle"] ? translateClassBicycle(way.tags["class:bicycle"]) : way.munichways.length > 0 ? translateMunichwaysColor(way.munichways[0].properties.munichways_color) : "blue",
+            osm_name: way.tags["name"],
             osm_class_bicycle: way.tags["class:bicycle"],
             osm_smoothness: way.tags["smoothness"],
             osm_surface: way.tags["surface"],
             osm_bicycle: way.tags["bicycle"],
+            osm_highway: way.tags["highway"],
             osm_lit: way.tags["lit"],
-            access: way.tags["access"],
+            osm_width: way.tags["width"],
+            osm_access: way.tags["access"],
             ...way.munichways.length > 0 ? {
-                munichways_id: [...new Set(way.munichways.map(mw => mw.properties.munichways_id))].join(","),
-                munichways_name: [...new Set(way.munichways.map(mw => mw.properties.munichways_name))].join(","),
-                munichways_happy_bike_level: [...new Set(way.munichways.map(mw => mw.properties.munichways_happy_bike_level))].join(","),
-                munichways_color: [...new Set(way.munichways.map(mw => mw.properties.munichways_color))].join(","),
-                munichways_mapillary_link: way.munichways.map(mw => mw.properties.munichways_mapillary_link).join(","),
-                // munichways_route: [...new Set(way.munichways.map(mw => mw.properties.munichways_route))].join(","),
-                // munichways_net_type_plan: [...new Set(way.munichways.map(mw => mw.properties.munichways_net_type_plan))].join(","),
-                // munichways_net_type_target: [...new Set(way.munichways.map(mw => mw.properties.munichways_net_type_target))].join(","),
-                munichways_current: way.munichways.map(mw => mw.properties.munichways_current).join(","),
-                munichways_target: way.munichways.map(mw => mw.properties.munichways_target).join(","),
-                // munichways_measure_category: [...new Set(way.munichways.map(mw => mw.properties.munichways_measure_category))].join(","),
-                munichways_description: way.munichways.map(mw => mw.properties.munichways_description).join(","),
-                // status_umsetzung
-                // status_umsetzung
-                // bezirk_link
-                // Neuralgischer_Punkt
-                // links
+                munichways_id: mwInfos.map(info => info.id).join(","),
+                munichways_name: mwInfos.map(info => info.name).join(","),
+                munichways_happy_bike_level: mwInfos.map(info => info.happy_bike_level).join(","),
+                munichways_color: mwInfos.map(info => info.farbe).join(","),
+                munichways_mapillary_link: mwInfos.map(info => info.mapillary_link).join(","),
+                munichways_route_link: mwInfos.map(info => info.strecken_link).join(","),
+                munichways_net_type_plan: mwInfos.map(info => info.netztyp_plan).join(","),
+                munichways_net_type_target: mwInfos.map(info => info.netztyp_ziel).join(","),
+                munichways_current: mwInfos.map(info => info.ist_situation).join(","),
+                munichways_target: mwInfos.map(info => info.soll_massnahmen).join(","),
+                munichways_measure_category_link: mwInfos.map(info => info.massnahmen_kategorie_link).join(","),
+                munichways_description: mwInfos.map(info => info.beschreibung).join(","),
+                munichways_status_implementation: mwInfos.map(info => info.status_umsetzung).join(","),
+                munichways_district_link: mwInfos.map(info => info.bezirk_link).join(","),
+                munichways_neuralgic_point: mwInfos.map(info => info.neuralgischer_punkt).join(","),
+                munichways_links: mwInfos.map(info => info.links).join(","),
+                munichways_mw_rv_route: mwInfos.map(info => info.mw_rv_strecke).join(","),
             } : {},
+            color: way.tags["class:bicycle"] ? translateClassBicycle(way.tags["class:bicycle"]) : way.munichways.length > 0 ? translateMunichwaysColor(way.munichways[0].properties.munichways_color) : undefined,
         }
     });
 }
