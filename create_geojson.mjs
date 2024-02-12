@@ -1,9 +1,57 @@
 import {createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync} from 'fs';
 import osmRead from 'osm-read';
+import crypto from 'crypto';
 
-const TOKEN = process.argv[2];
+if (!existsSync("secret.json")) {
+    console.log("File secret.json is not present, please create it for an appropriate service account in Google Cloud Console.");
+    process.exit(-1);
+}
+const secretContent = readFileSync('secret.json');
+const {
+    private_key: privateKeyStr,
+    client_email: clientEmail,
+    token_uri: tokenUri,
+} = JSON.parse(secretContent);
+
 const FOLDER_ID = '1bbPddqZ4heiq5Zpg0CAGedItJ3b_s6OW';
 const SHEET_NAME = 'webapp';
+
+const header = JSON.stringify({"alg":"RS256","typ":"JWT"});
+const b64Header = Buffer.from(header, 'utf-8').toString('base64');
+
+const timestamp = Math.floor(Date.now() / 1000);
+const scope = ["https://www.googleapis.com/auth/spreadsheets","https://www.googleapis.com/auth/drive"].join(" ")
+const payload = JSON.stringify({
+    "iss": clientEmail,
+    scope,
+    "aud": tokenUri,
+    "exp": timestamp + 1800,
+    "iat": timestamp,
+});
+const b64Payload = Buffer.from(payload, "utf-8").toString('base64');
+
+const signer = crypto.createSign("RSA-SHA256");
+signer.update(`${b64Header}.${b64Payload}`);
+const privateKey = crypto.createPrivateKey(privateKeyStr);
+const b64Signature = signer.sign({key:privateKey,padding:crypto.constants.RSA_PKCS1_PADDING}, "base64").replace("+", "-").replace("/", "_");;
+
+const assertion = `${b64Header}.${b64Payload}.${b64Signature}`;
+const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    body: JSON.stringify({
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        assertion,
+    }),
+});
+
+if (tokenResponse.status !== 200) {
+    console.error("Could not retrieve token!");
+    console.error(tokenResponse.statusText);
+    console.error(await tokenResponse.text());
+    process.exit(-1);
+}
+
+const { access_token: TOKEN } = await tokenResponse.json();
 
 if (TOKEN == null) {
     console.error("Benötigt Zugangstoken als ersten Parameter.")
@@ -304,7 +352,7 @@ const geoJson = {
     type: "FeatureCollection",
     features,
 }
-console.log("writing output file IST_RadlVorrangNetz_MunichWays_V20.geojson ...");
-writeFileSync("./IST_RadlVorrangNetz_MunichWays_V20.geojson", JSON.stringify(geoJson));
+console.log("writing output file munichways.geojson ...");
+writeFileSync("./munichways.geojson", JSON.stringify(geoJson));
 
 console.log("done!")
