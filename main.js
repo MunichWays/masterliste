@@ -18,6 +18,7 @@ const infoElement = document.getElementById("info");
 const hoverElement = document.getElementById("hover");
 const hintElement = document.getElementById("hint");
 const rowNumText = document.getElementById("row_num_text");
+const MunichwaysIdText = document.getElementById("munichways_id_text");
 const SOURCE_SHEET_NAME = "webapp";
 const TARGET_SHEET_NAME = "osm_class_bicycle";
 const MUNICHWAYS_ID_INDEX = 0;
@@ -232,9 +233,11 @@ let existingFileId = null;
 async function editRow(row) {
   hintElement.innerHTML = "<h2>wird geladen ...</h2>";
   rowNumText.value = row;
+  MunichwaysIdText.value = munichwaysId;
   btnNext.disabled = true;
   btnSave.disabled = true;
   rowNumText.disabled = true;
+  MunichwaysIdText.disabled = true;
   vectorSource.clear();
   baseVectorSource.clear();
 
@@ -299,6 +302,7 @@ async function editRow(row) {
     btnNext.disabled = false;
     btnSave.disabled = true;
     rowNumText.disabled = false;
+    MunichwaysIdText.disabled = false;
     hintElement.innerHTML = "<h2>keine Carto Daten!</h2>";
     return;
   }
@@ -306,6 +310,7 @@ async function editRow(row) {
     btnNext.disabled = false;
     btnSave.disabled = true;
     rowNumText.disabled = false;
+    MunichwaysIdText.disabled = false;
     return;
   }
   const coorString = lineStringIn.replace("LINESTRING(", "").replace(")", "");
@@ -326,6 +331,7 @@ async function editRow(row) {
     btnNext.disabled = false;
     btnSave.disabled = true;
     rowNumText.disabled = false;
+    MunichwaysIdText.disabled = false;
     return;
   }
   
@@ -375,6 +381,7 @@ async function editRow(row) {
   btnNext.disabled = false;
   btnSave.disabled = false;
   rowNumText.disabled = false;
+  MunichwaysIdText.disabled = false;
   hintElement.innerHTML = "";
 }
 
@@ -382,6 +389,7 @@ async function saveResult() {
   btnNext.disabled = true;
   btnSave.disabled = true;
   rowNumText.disabled = true;
+  MunichwaysIdText.disabled = true;
   hintElement.innerHTML = "wird gespeichert ...";
 
   const wayIds = [];
@@ -436,6 +444,7 @@ async function saveResult() {
   btnNext.disabled = false;
   btnSave.disabled = false;
   rowNumText.disabled = false;
+  MunichwaysIdText.disabled = false;
   hintElement.innerHTML = "";
 }
 
@@ -476,3 +485,40 @@ rowNumText.onchange = (e) => {
 linkShowToken.onclick = () => {
   prompt("Dein aktuelles Zugriffstoken lautet:", accessToken);
 };
+
+async function fetchSheetRowByMunichwaysId(munichwaysId) {
+  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/1PZ_4oEh7ycMILtyvlzan2lax4qjPPQeQLvmxTJbDpds/values/${SOURCE_SHEET_NAME}!A1:Z`, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+    },
+  });
+  const data = await response.json();
+  const rows = data.values;
+  // Durchsuchen Sie die Zeilen, um die Zeile mit der übergebenen munichwaysId zu finden
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (row[MUNICHWAYS_ID_INDEX] === munichwaysId) {
+      return row;
+          console.log(`Die Zeile mit der munichwaysId ${tempMunichwaysId} wurde gefunden.`);
+    }
+  }
+  // Wenn die munichwaysId nicht gefunden wurde, geben Sie null zurück oder werfen Sie einen Fehler, je nach Bedarf
+  return null;
+}
+
+MunichWaysIdText.onchange = async (e) => {
+  console.log(`MunichWaysIdText.onchange currentRow: ${currentRow}`)
+  const tempMunichwaysId = MunichWaysIdText.value;
+  const row = await fetchSheetRowByMunichwaysId(tempMunichwaysId);
+  console.log(`nach fetchSheetRowByMunichwaysId`)
+  if (row) {
+    // Wenn die Zeile gefunden wurde, aktualisieren Sie die currentRow-Variable und rufen Sie editRow auf
+    currentRow = parseInt(row[0]); // Hier nehmen Sie an, dass die Zeilennummer das erste Element in der Zeile ist
+      console.log(`vor editRow, currentRow: ${currentRow}`)
+    editRow(currentRow);
+  } else {
+    // Wenn die Zeile nicht gefunden wurde, geben Sie eine entsprechende Meldung aus oder führen Sie andere Aktionen aus
+    console.log(`Die Zeile mit der munichwaysId ${tempMunichwaysId} wurde nicht gefunden.`);
+  }
+};
+
