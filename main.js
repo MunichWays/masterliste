@@ -6,7 +6,7 @@ import XYZ from 'ol/source/XYZ';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import GeoJSON from 'ol/format/GeoJSON';
-import { Stroke, Style } from 'ol/style.js';
+import { Fill, Stroke, Style, Circle } from 'ol/style.js';
 import { transform } from 'ol/proj';
 
 const AUTOPILOT = false;
@@ -17,8 +17,7 @@ const infoElement = document.getElementById("info");
 const hoverElement = document.getElementById("hover");
 const hintElement = document.getElementById("hint");
 const rowNumText = document.getElementById("row_num_text");
-const btnLoadOSM = document.getElementById("btn_load_osm");
-const btnDelLine = document.getElementById("btn_del_line");
+const btnOSM = document.getElementById("btn_osm");
 const SOURCE_SHEET_NAME = "webapp";
 const TARGET_SHEET_NAME = "osm_class_bicycle";
 const MUNICHWAYS_ID_INDEX = 0;
@@ -43,6 +42,7 @@ const BEZIRK_LINK_INDEX = 20;
 const FOLDER_ID = "1bbPddqZ4heiq5Zpg0CAGedItJ3b_s6OW";
 
 let currentRow = 1;
+let drawLine = false;
 
 // do oauth
 const hashParams = new Map(window.location.hash.slice(1).split("&").map(part => part.split("=")));
@@ -111,7 +111,13 @@ const map = new OlMap({
                 stroke: new Stroke({
                     color: 'rgba(0,0,255,0.7)',
                     width: 6,
+                    radius: 2,
                 }),
+                image: new Circle({
+                    radius: 5,
+                    fill: null,
+                    stroke: new Stroke({color: 'rgba(0,0,255,0.7)', width: 3}),
+                  }),
             }),
         }),
         new VectorLayer({
@@ -133,37 +139,40 @@ const map = new OlMap({
 const line = [];
 
 map.on('click', (e) => {
-    let hit = false;
-    map.forEachFeatureAtPixel(e.pixel, (feature) => {
-        if (feature.get('matched') !== undefined) {
-            feature.set('matched', !feature.get('matched'));
-            console.log(feature.getProperties());
-            hit = true;
-        }
-    });
-    if (hit) {
-        btnSave.disabled = false;
-    } else {
+    if (drawLine) {
         const coord = transform(e.coordinate, 'EPSG:3857', 'EPSG:4326');
         line.push(coord);
         console.log(line);
-        const lineString = {
-            type: "Feature",
-            properties: {},
-            geometry: {
-                type: "LineString",
-                coordinates: line,
-            }
-        };
         baseVectorSource.clear();
-        baseVectorSource.addFeature(new GeoJSON().readFeature(lineString, { featureProjection: 'EPSG:3857' }));
+        if (line.length > 1) {
+            baseVectorSource.addFeature(new GeoJSON().readFeature({
+                type: "Feature",
+                properties: {},
+                geometry: {
+                    type: "LineString",
+                    coordinates: line,
+                }
+            }, { featureProjection: 'EPSG:3857' }));
+        } else {
+            baseVectorSource.addFeature(new GeoJSON().readFeature({
+                type: "Feature",
+                properties: {},
+                geometry: {
+                    type: "Point",
+                    coordinates: line[0],
+                }
+            }, { featureProjection: 'EPSG:3857' }));
+        }
+    } else {
+        map.forEachFeatureAtPixel(e.pixel, (feature) => {
+            if (feature.get('matched') !== undefined) {
+                feature.set('matched', !feature.get('matched'));
+                console.log(feature.getProperties());
+                btnSave.disabled = false;
+            }
+        });
     }
 });
-
-btnDelLine.onclick = () => {
-    line.splice(0);
-    baseVectorSource.clear();
-};
 
 map.on('pointermove', (e) => {
     hoverElement.innerHTML = ``;
@@ -272,10 +281,18 @@ let munichwaysMwRvStrecke = null;
 let existingFileId = null;
 let previouslyMatchedOsmIds = null;
 
-async function getOSMData(lineFeature) {
-    const buffered_ls = turf.buffer(lineFeature, 10, { units: 'meters' });
-    const poly_str = buffered_ls.geometry.coordinates.flat().map(([lat, lon]) => [lon, lat]).flat().join(" ");
-    const queryData = `[out:json];way(poly:"${poly_str}");out geom;`;
+async function getOSMData(lineFeature, ids) {
+    let queryData = `[out:json]; (`;
+    if (lineFeature) {
+        const buffered_ls = turf.buffer(lineFeature, 10, { units: 'meters' });
+        const poly_str = buffered_ls.geometry.coordinates.flat().map(([lat, lon]) => [lon, lat]).flat().join(" ");
+        queryData += `way(poly:"${poly_str}"); `;
+    }
+    if (ids != null && ids.length > 0) {
+        queryData += `way(id:${ids.join(",")}); `;
+    }
+    queryData += `); out geom;`;
+
     const response = await fetch("https://overpass-api.de/api/interpreter", {
         method: "POST",
         headers: { "Content-Type": "form/multipart" },
@@ -293,11 +310,13 @@ async function getOSMData(lineFeature) {
         item.tags.highway !== "steps");
     for (const way of ways) {
         const distances = [];
-        for (const point of way.geometry) {
-            const { lon, lat } = point;
-            const nodeCoord = [lon, lat];
-            const nodeDistance = turf.pointToLineDistance(nodeCoord, lineFeature, { units: 'meters' });
-            distances.push(nodeDistance);
+        if (lineFeature) {
+            for (const point of way.geometry) {
+                const { lon, lat } = point;
+                const nodeCoord = [lon, lat];
+                const nodeDistance = turf.pointToLineDistance(nodeCoord, lineFeature, { units: 'meters' });
+                distances.push(nodeDistance);
+            }
         }
         featureCollection.features.push({
             type: 'Feature',
@@ -322,6 +341,7 @@ async function editRow(row) {
     hintElement.innerHTML = "<h2>wird geladen ...</h2>";
     rowNumText.value = row;
     btnNext.disabled = true;
+    btnOSM.disabled = true;
     btnSave.disabled = true;
     rowNumText.disabled = true;
     vectorSource.clear();
@@ -379,23 +399,31 @@ async function editRow(row) {
         infoElement.innerHTML += `<a href="${munichwaysMapillaryLink}" target="_blank">In Mapillary öffnen</a><br />`;
     }
     if (previouslyMatchedOsmIds != null) {
-        infoElement.innerHTML += `☑️ wurde bereits zugeordnet`;
+        infoElement.innerHTML += `☑️ wurde bereits zugeordnet<br />`;
     } else {
-        infoElement.innerHTML += `˟ noch nicht zugeordnet`;
+        infoElement.innerHTML += `˟ noch nicht zugeordnet<br />`;
     }
 
     const lineStringIn = dataRow[CARTO_GEOM_INDEX];
+
     if (lineStringIn == null || lineStringIn.trim() == "") {
         btnNext.disabled = false;
+        btnOSM.disabled = false;
         btnSave.disabled = true;
         rowNumText.disabled = false;
-        hintElement.innerHTML = "<h2>keine Carto Daten!</h2>";
+        infoElement.innerHTML += "<br /><i><b>keine Carto Daten</b> - nutze den 'Linie zeichnen' Knopf, um per Mausklick eine Referenzlinie auf der Karte zu zeichnen.</i>";
+
+        if (previouslyMatchedOsmIds != null) {
+            await getOSMData(null, previouslyMatchedOsmIds);
+        }
         return;
     }
+
     if (lineStringIn.indexOf("MULTI") >= 0) {
         btnNext.disabled = false;
         btnSave.disabled = true;
         rowNumText.disabled = false;
+        btnOSM.disabled = false;
         return;
     }
     const coorString = lineStringIn.replace("LINESTRING(", "").replace(")", "");
@@ -416,14 +444,16 @@ async function editRow(row) {
         btnNext.disabled = false;
         btnSave.disabled = true;
         rowNumText.disabled = false;
+        btnOSM.disabled = false;
         return;
     }
 
-    await getOSMData(lineString);
+    await getOSMData(lineString, previouslyMatchedOsmIds || []);
 
     btnNext.disabled = false;
     btnSave.disabled = false;
     rowNumText.disabled = false;
+    btnOSM.disabled = false;
     hintElement.innerHTML = "";
 }
 
@@ -431,6 +461,7 @@ async function saveResult() {
     btnNext.disabled = true;
     btnSave.disabled = true;
     rowNumText.disabled = true;
+    btnOSM.disabled = true;
     hintElement.innerHTML = "wird gespeichert ...";
 
     const wayIds = [];
@@ -484,6 +515,7 @@ async function saveResult() {
 
     btnNext.disabled = false;
     btnSave.disabled = false;
+    btnOSM.disabled = false;
     rowNumText.disabled = false;
     hintElement.innerHTML = "";
 }
@@ -544,14 +576,24 @@ rowNumText.onchange = (e) => {
     editRow(currentRow);
 };
 
-btnLoadOSM.onclick = async () => {
-    console.log("loading osm data ...");
-    await getOSMData({
-        type: "Feature",
-        properties: {},
-        geometry: {
-            type: "LineString",
-            coordinates: line,
-        }
-    });
+btnOSM.onclick = async () => {
+    if (drawLine) {
+        btnOSM.disabled = true;
+        btnOSM.innerText = "lade OSM Daten ...";
+        await getOSMData({
+            type: "Feature",
+            properties: {},
+            geometry: {
+                type: "LineString",
+                coordinates: line,
+            }
+        });
+        btnOSM.disabled = false;
+        btnOSM.innerText = "Linie zeichnen";
+    } else {
+        line.splice(0);
+        baseVectorSource.clear();
+        btnOSM.innerText = "OSM Daten laden";
+    }
+    drawLine = !drawLine;
 };
