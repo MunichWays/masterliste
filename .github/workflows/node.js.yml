@@ -23,4 +23,4 @@ jobs:
     - uses: actions/upload-artifact@v4
       with:
         name: geojson
-        path: munichways.geojson
+        path: IST_RadlVorrangNetz_MunichWays_V20.geojson

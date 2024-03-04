@@ -352,7 +352,7 @@ const geoJson = {
     type: "FeatureCollection",
     features,
 }
-console.log("writing output file munichways.geojson ...");
-writeFileSync("./munichways.geojson", JSON.stringify(geoJson));
+console.log("writing output file IST_RadlVorrangNetz_MunichWays_V20.geojson ...");
+writeFileSync("./IST_RadlVorrangNetz_MunichWays_V20.geojson", JSON.stringify(geoJson));
 
 console.log("done!")
