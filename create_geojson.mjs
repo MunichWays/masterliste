@@ -176,7 +176,7 @@ do {
     continuationToken = nextPageToken;
 
     const featureCollections = await Promise.all(files.map(f => f.id).map(retrieveFileById));
-    const featuresList = featureCollections.flatMap(fc => fc.features);
+    const featuresList = featureCollections.flatMap(fc => fc.features).filter(f => f != null);
     allFeatures = allFeatures.concat(featuresList);
 
     process.stdout.write(".");
