@@ -307,7 +307,7 @@ console.log("building GeoJSON for combined data ...");
 const features = [];
 for (const way of bicycleWays) {
     const munichWaysIds = [...new Set(way.munichways.map(mw => mw.properties.munichways_id))];
-    const mwInfos = munichWaysIds.map(id => munichWaysInfoById.get(id));
+    const mwInfos = munichWaysIds.map(id => munichWaysInfoById.get(id)).filter(info => info !== undefined);
     features.push({
         type: "Feature",
         geometry: {
