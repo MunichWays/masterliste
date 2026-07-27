@@ -44,6 +44,45 @@ const FOLDER_ID = "1bbPddqZ4heiq5Zpg0CAGedItJ3b_s6OW";
 let currentRow = 1;
 let drawLine = false;
 
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 20000) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const timeoutError = () => new Error(`Die Anfrage hat zu lange gebraucht (${Math.round(timeoutMs / 1000)} Sekunden).`);
+    try {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        const readBody = (method) => async (...args) => {
+            try {
+                return await response[method](...args);
+            } catch (error) {
+                if (controller.signal.aborted) {
+                    throw timeoutError();
+                }
+                throw error;
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        };
+
+        // fetch() resolves as soon as the headers arrive. Keep the timeout active
+        // until the response body has actually been read as well.
+        return new Proxy(response, {
+            get(target, property) {
+                if (["arrayBuffer", "blob", "formData", "json", "text"].includes(property)) {
+                    return readBody(property);
+                }
+                const value = Reflect.get(target, property, target);
+                return typeof value === "function" ? value.bind(target) : value;
+            },
+        });
+    } catch (error) {
+        clearTimeout(timeoutId);
+        if (controller.signal.aborted) {
+            throw timeoutError();
+        }
+        throw error;
+    }
+};
+
 // do oauth
 const hashParams = new Map(window.location.hash.slice(1).split("&").map(part => part.split("=")));
 let accessToken = null;
@@ -71,7 +110,7 @@ const createFile = async (name, content) => {
     data += "Content-Type: application/json; charset=UTF-8\r\n\r\n";
     data += content;
     data += "\r\n--" + boundary + "--\r\n";
-    const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+    const response = await fetchWithTimeout("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
         method: "POST",
         headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -83,7 +122,7 @@ const createFile = async (name, content) => {
 };
 
 const updateFile = async (id, content) => {
-    const response = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=media`, {
+    const response = await fetchWithTimeout(`https://www.googleapis.com/upload/drive/v3/files/${id}?uploadType=media`, {
         body: content,
         method: 'PATCH',
         headers: {
@@ -91,6 +130,9 @@ const updateFile = async (id, content) => {
             "Content-Type": "application/json; charset=UTF-8",
         },
     });
+    if (!response.ok) {
+        throw new Error(`Drive-Update fehlgeschlagen (${response.status}): ${await response.text()}`);
+    }
     return response.json();
 };
 
@@ -191,30 +233,44 @@ map.on('pointermove', (e) => {
 })
 
 const fetchSheetRow = async (rowNum = 1) => {
-    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/1PZ_4oEh7ycMILtyvlzan2lax4qjPPQeQLvmxTJbDpds/values/${SOURCE_SHEET_NAME}!${rowNum}:${rowNum}`,
+    const response = await fetchWithTimeout(`https://sheets.googleapis.com/v4/spreadsheets/1PZ_4oEh7ycMILtyvlzan2lax4qjPPQeQLvmxTJbDpds/values/${SOURCE_SHEET_NAME}!${rowNum}:${rowNum}`,
         {
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
             },
         });
-    const data = await response.json();
-    const rows = data.values;
-    return rows[0];
+    const responseText = await response.text();
+    let data = {};
+    try {
+        data = JSON.parse(responseText);
+    } catch {
+        data = {};
+    }
+    if (!response.ok) {
+        throw new Error(`Google Sheets Anfrage fehlgeschlagen (${response.status}): ${data.error?.message || responseText || "unbekannter Fehler"}`);
+    }
+    const rows = data.values ?? [];
+    return rows[0] ?? [];
 };
 
 const fetchSheetRows = async (startRow = 1, numRows = 1000) => {
-    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/1PZ_4oEh7ycMILtyvlzan2lax4qjPPQeQLvmxTJbDpds/values/${SOURCE_SHEET_NAME}!A${startRow}:A${startRow + numRows}`,
+    const response = await fetchWithTimeout(`https://sheets.googleapis.com/v4/spreadsheets/1PZ_4oEh7ycMILtyvlzan2lax4qjPPQeQLvmxTJbDpds/values/${SOURCE_SHEET_NAME}!A${startRow}:A${startRow + numRows}`,
         {
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
             },
         });
-    if (response.status != 200) {
-        throw new Error(response.status + (await response.text()))
+    const responseText = await response.text();
+    let data = {};
+    try {
+        data = JSON.parse(responseText);
+    } catch {
+        data = {};
     }
-    const data = await response.json();
-    const rows = data.values;
-    return rows;
+    if (!response.ok) {
+        throw new Error(`Google Sheets Anfrage fehlgeschlagen (${response.status}): ${data.error?.message || responseText || "unbekannter Fehler"}`);
+    }
+    return data.values ?? [];
 };
 
 const updateSheetRow = async (rowNum = 1, osm_ids) => {
@@ -226,7 +282,7 @@ const updateSheetRow = async (rowNum = 1, osm_ids) => {
             [osm_ids],
         ],
     };
-    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/1PZ_4oEh7ycMILtyvlzan2lax4qjPPQeQLvmxTJbDpds/values/${range}?valueInputOption=RAW`,
+    const response = await fetchWithTimeout(`https://sheets.googleapis.com/v4/spreadsheets/1PZ_4oEh7ycMILtyvlzan2lax4qjPPQeQLvmxTJbDpds/values/${range}?valueInputOption=RAW`,
         {
             method: 'PUT',
             body: JSON.stringify(data),
@@ -235,7 +291,9 @@ const updateSheetRow = async (rowNum = 1, osm_ids) => {
                 'Authorization': `Bearer ${accessToken}`,
             },
         });
-    return response.status == 200;
+    const success = response.status == 200;
+    await response.text();
+    return success;
 };
 
 const appendSheetRow = async (munichways_id, osm_id, name_osm, class_bicycle, class_bicycle_org, smoothness, surface, bicycle, highway, lit, width, access, geom, last_updated) => {
@@ -246,7 +304,7 @@ const appendSheetRow = async (munichways_id, osm_id, name_osm, class_bicycle, cl
             [munichways_id, osm_id, name_osm, class_bicycle, class_bicycle_org, smoothness, surface, bicycle, highway, lit, width, access, geom, last_updated],
         ],
     };
-    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/1PZ_4oEh7ycMILtyvlzan2lax4qjPPQeQLvmxTJbDpds/values/${TARGET_SHEET_NAME}!A1:N1:append?valueInputOption=RAW`,
+    const response = await fetchWithTimeout(`https://sheets.googleapis.com/v4/spreadsheets/1PZ_4oEh7ycMILtyvlzan2lax4qjPPQeQLvmxTJbDpds/values/${TARGET_SHEET_NAME}!A1:N1:append?valueInputOption=RAW`,
         {
             method: 'POST',
             body: JSON.stringify(data),
@@ -255,7 +313,9 @@ const appendSheetRow = async (munichways_id, osm_id, name_osm, class_bicycle, cl
                 'Authorization': `Bearer ${accessToken}`,
             },
         });
-    return response.status == 200;
+    const success = response.status == 200;
+    await response.text();
+    return success;
 };
 
 hintElement.innerHTML = "<h2>wird geladen ...</h2>";
@@ -281,39 +341,109 @@ let munichwaysMwRvStrecke = null;
 let existingFileId = null;
 let previouslyMatchedOsmIds = null;
 
-async function getOSMData(lineFeature, ids) {
-    let queryData = `[out:json]; (`;
-    if (lineFeature) {
-        const buffered_ls = turf.buffer(lineFeature, 10, { units: 'meters' });
-        const poly_str = buffered_ls.geometry.coordinates.flat().map(([lat, lon]) => [lon, lat]).flat().join(" ");
-        queryData += `way(poly:"${poly_str}"); `;
-    }
-    if (ids != null && ids.length > 0) {
-        queryData += `way(id:${ids.join(",")}); `;
-    }
-    queryData += `); out geom;`;
+const setLoadingState = (message = "wird geladen ...") => {
+    hintElement.innerHTML = `<h2>${message}</h2>`;
+    btnNext.disabled = true;
+    btnOSM.disabled = true;
+    btnSave.disabled = true;
+    rowNumText.disabled = true;
+};
 
-    const response = await fetch("https://overpass-api.de/api/interpreter", {
-        method: "POST",
-        headers: { "Content-Type": "form/multipart" },
-        body: `data=${encodeURIComponent(queryData)}`,
-    });
-    const elements = (await response.json()).elements;
+const resetControls = (allowNext = true, allowSave = true, allowOsm = true) => {
+    btnNext.disabled = !allowNext;
+    btnSave.disabled = !allowSave;
+    btnOSM.disabled = !allowOsm;
+    rowNumText.disabled = false;
+};
+
+const showError = (message, details = "") => {
+    console.error(message, details);
+    hintElement.innerHTML = `<h2>Fehler</h2><p>${message}</p>${details ? `<p><small>${details}</small></p>` : ""}`;
+    btnNext.disabled = false;
+    btnSave.disabled = true;
+    btnOSM.disabled = false;
+    rowNumText.disabled = false;
+};
+
+async function getOSMData(lineFeature, ids) {
+    hintElement.innerHTML = "<h2>OSM-Daten werden direkt von OpenStreetMap geladen ...</h2>";
+    const osmDocuments = [];
+    const loadOsmXml = async (url) => {
+        const response = await fetchWithTimeout(url, {
+            headers: { "Accept": "application/xml" },
+        }, 30000);
+        if (!response.ok) {
+            throw new Error(`OpenStreetMap-Abfrage fehlgeschlagen (${response.status}): ${await response.text() || "unbekannter Fehler"}`);
+        }
+        const xmlText = await response.text();
+        const document = new DOMParser().parseFromString(xmlText, "application/xml");
+        if (document.querySelector("parsererror")) {
+            throw new Error("OpenStreetMap hat keine gültige XML-Antwort geliefert.");
+        }
+        return document;
+    };
+
+    let bufferedLine = null;
+    if (lineFeature) {
+        bufferedLine = turf.buffer(lineFeature, 10, { units: 'meters' });
+        const [left, bottom, right, top] = turf.bbox(bufferedLine);
+        const bboxArea = (right - left) * (top - bottom);
+        if (bboxArea > 0.25) {
+            throw new Error("Der Kartenausschnitt ist für eine direkte OpenStreetMap-Abfrage zu groß.");
+        }
+        const bbox = [left, bottom, right, top].map(value => value.toFixed(7)).join(",");
+        osmDocuments.push(await loadOsmXml(
+            `/osm-api/map?bbox=${encodeURIComponent(bbox)}`
+        ));
+    } else if (ids != null && ids.length > 0) {
+        for (const id of ids) {
+            osmDocuments.push(await loadOsmXml(
+                `/osm-api/way/${encodeURIComponent(id)}/full`
+            ));
+        }
+    } else {
+        throw new Error("Für die OSM-Abfrage fehlt eine Referenzlinie.");
+    }
+
+    const nodes = new Map();
+    const ways = new Map();
+    for (const document of osmDocuments) {
+        for (const node of document.getElementsByTagName("node")) {
+            nodes.set(node.getAttribute("id"), [
+                Number(node.getAttribute("lon")),
+                Number(node.getAttribute("lat")),
+            ]);
+        }
+        for (const wayElement of document.getElementsByTagName("way")) {
+            const wayId = Number(wayElement.getAttribute("id"));
+            const nodeIds = [];
+            const tags = {};
+            for (const child of wayElement.children) {
+                if (child.localName === "nd") {
+                    nodeIds.push(child.getAttribute("ref"));
+                } else if (child.localName === "tag") {
+                    tags[child.getAttribute("k")] = child.getAttribute("v");
+                }
+            }
+            ways.set(wayId, { wayId, nodeIds, tags });
+        }
+    }
+
     const featureCollection = {
         type: "FeatureCollection",
         features: [],
     }
-    const ways = elements.filter(item =>
-        item.type === 'way' &&
-        item.tags !== undefined &&
-        item.tags.highway !== undefined &&
-        item.tags.highway !== "steps");
-    for (const way of ways) {
+    for (const { wayId, nodeIds, tags } of ways.values()) {
+        if (tags.highway == null || tags.highway === "steps") {
+            continue;
+        }
+        const coordinates = nodeIds.map(nodeId => nodes.get(nodeId)).filter(Boolean);
+        if (coordinates.length < 2) {
+            continue;
+        }
         const distances = [];
         if (lineFeature) {
-            for (const point of way.geometry) {
-                const { lon, lat } = point;
-                const nodeCoord = [lon, lat];
+            for (const nodeCoord of coordinates) {
                 const nodeDistance = turf.pointToLineDistance(nodeCoord, lineFeature, { units: 'meters' });
                 distances.push(nodeDistance);
             }
@@ -322,71 +452,85 @@ async function getOSMData(lineFeature, ids) {
             type: 'Feature',
             properties: {
                 matched: previouslyMatchedOsmIds != null ?
-                    previouslyMatchedOsmIds.includes(way.id) :
-                    (distances.reduce((a, b) => a + b, 0) / distances.length) < 2,
-                way: way.id,
-                tags: way.tags,
-                nodes: way.nodes,
+                    previouslyMatchedOsmIds.includes(wayId) :
+                    distances.length > 0 && (distances.reduce((a, b) => a + b, 0) / distances.length) < 2,
+                way: wayId,
+                tags,
             },
-            geometry: { type: 'LineString', coordinates: way.geometry.map(p => [p.lon, p.lat]) }
+            geometry: { type: "LineString", coordinates },
         });
     }
 
     vectorSource.addFeatures(new GeoJSON().readFeatures(featureCollection, { featureProjection: 'EPSG:3857' }));
 
-    map.getView().fit(vectorSource.getExtent());
+    if (!vectorSource.isEmpty()) {
+        map.getView().fit(vectorSource.getExtent());
+    }
 }
 
 async function editRow(row) {
-    hintElement.innerHTML = "<h2>wird geladen ...</h2>";
+    setLoadingState();
     rowNumText.value = row;
-    btnNext.disabled = true;
-    btnOSM.disabled = true;
-    btnSave.disabled = true;
-    rowNumText.disabled = true;
     vectorSource.clear();
     baseVectorSource.clear();
+    let loadingStage = "Google-Sheets-Zeile";
 
-    const dataRow = await fetchSheetRow(row);
-    munichwaysId = dataRow[MUNICHWAYS_ID_INDEX];
-    munichwaysName = dataRow[NAME_INDEX];
-    munichwaysIst = dataRow[IST_SITUATION_INDEX];
-    munichwaysFarbe = dataRow[FARBE_INDEX];
-    munichwaysHappyBikeLevel = dataRow[HAPPY_BIKE_LEVEL_INDEX];
-    munichwaysSoll = dataRow[SOLL_MASSNAHMEN_INDEX];
-    munichwaysBeschreibung = dataRow[BESCHREIBUNG_INDEX];
-    munichwaysMapillaryLink = dataRow[MAPILLARY_LINK_INDEX];
-    munichwaysStreckenLink = dataRow[STRECKEN_LINK_INDEX];
-    munichwaysNetztypPlan = dataRow[NETZTYP_PLAN_INDEX];
-    munichwaysNetztypZiel = dataRow[NETZTYP_ZIEL_INDEX];
-    munichwaysMassnahmenKategorieLink = dataRow[MASSNAHMEN_KATEGORIE_LINK_INDEX];
-    munichwaysStatusUmsetzung = dataRow[STATUS_UMSETZUNG_INDEX];
-    munichwaysBezirkLink = dataRow[BEZIRK_LINK_INDEX];
-    munichwaysNeuralgischerPunkt = dataRow[NEURALGISCHER_PUNKT_INDEX];
-    munichwaysLinks = dataRow[LINKS_INDEX];
-    munichwaysMwRvStrecke = dataRow[MW_RV_STRECKE_INDEX];
+    try {
+        hintElement.innerHTML = "<h2>Google-Sheets-Zeile wird geladen ...</h2>";
+        const dataRow = await fetchSheetRow(row);
+        if (!Array.isArray(dataRow) || dataRow.length === 0) {
+            throw new Error(`Die Zeile ${row} konnte nicht aus Google Sheets geladen werden.`);
+        }
 
-    const query = `name='${munichwaysId}.json' and '${FOLDER_ID}' in parents and trashed=false`;
-    const filesResponse = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}`, {
-        headers: {
-            "Authorization": `Bearer ${accessToken}`,
-        },
-    });
-    const { files } = await filesResponse.json();
-    existingFileId = files?.[0]?.id;
-    if (existingFileId) {
-        const fileResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${existingFileId}?alt=media`, {
+        munichwaysId = dataRow[MUNICHWAYS_ID_INDEX];
+        munichwaysName = dataRow[NAME_INDEX];
+        munichwaysIst = dataRow[IST_SITUATION_INDEX];
+        munichwaysFarbe = dataRow[FARBE_INDEX];
+        munichwaysHappyBikeLevel = dataRow[HAPPY_BIKE_LEVEL_INDEX];
+        munichwaysSoll = dataRow[SOLL_MASSNAHMEN_INDEX];
+        munichwaysBeschreibung = dataRow[BESCHREIBUNG_INDEX];
+        munichwaysMapillaryLink = dataRow[MAPILLARY_LINK_INDEX];
+        munichwaysStreckenLink = dataRow[STRECKEN_LINK_INDEX];
+        munichwaysNetztypPlan = dataRow[NETZTYP_PLAN_INDEX];
+        munichwaysNetztypZiel = dataRow[NETZTYP_ZIEL_INDEX];
+        munichwaysMassnahmenKategorieLink = dataRow[MASSNAHMEN_KATEGORIE_LINK_INDEX];
+        munichwaysStatusUmsetzung = dataRow[STATUS_UMSETZUNG_INDEX];
+        munichwaysBezirkLink = dataRow[BEZIRK_LINK_INDEX];
+        munichwaysNeuralgischerPunkt = dataRow[NEURALGISCHER_PUNKT_INDEX];
+        munichwaysLinks = dataRow[LINKS_INDEX];
+        munichwaysMwRvStrecke = dataRow[MW_RV_STRECKE_INDEX];
+
+        loadingStage = "Google-Drive-Dateisuche";
+        hintElement.innerHTML = "<h2>Vorhandene Zuordnung wird gesucht ...</h2>";
+        const query = `name='${munichwaysId}.json' and '${FOLDER_ID}' in parents and trashed=false`;
+        const filesResponse = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}`, {
             headers: {
                 "Authorization": `Bearer ${accessToken}`,
             },
         });
-        const previousFeatureCollection = await fileResponse.json();
-        previouslyMatchedOsmIds = previousFeatureCollection.features.map(f => f.properties.osm_id);
-    } else {
-        previouslyMatchedOsmIds = null;
-    }
+        if (!filesResponse.ok) {
+            throw new Error(`Drive-Abfrage fehlgeschlagen (${filesResponse.status}): ${await filesResponse.text()}`);
+        }
+        const { files } = await filesResponse.json();
+        existingFileId = files?.[0]?.id;
+        if (existingFileId) {
+            loadingStage = "Google-Drive-Dateidownload";
+            hintElement.innerHTML = "<h2>Vorhandene Zuordnung wird geladen ...</h2>";
+            const fileResponse = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files/${existingFileId}?alt=media`, {
+                headers: {
+                    "Authorization": `Bearer ${accessToken}`,
+                },
+            });
+            if (!fileResponse.ok) {
+                throw new Error(`Drive-Datei konnte nicht geladen werden (${fileResponse.status}): ${await fileResponse.text()}`);
+            }
+            const previousFeatureCollection = await fileResponse.json();
+            previouslyMatchedOsmIds = previousFeatureCollection.features.map(f => f.properties.osm_id);
+        } else {
+            previouslyMatchedOsmIds = null;
+        }
 
-    infoElement.innerHTML = `<h3>Masterlisten Element #${row}</h3>
+        infoElement.innerHTML = `<h3>Masterlisten Element #${row}</h3>
   <b>MunichWays_ID</b>:&nbsp;${munichwaysId}<br />
   <b>Name</b>: ${munichwaysName}<br />
   <b>Farbe</b>: ${munichwaysFarbe}<br />
@@ -395,148 +539,155 @@ async function editRow(row) {
   <b>IST_Situation</b>: ${munichwaysIst}<br />
   <b>SOLL_Massnahmen</b>: ${munichwaysSoll}<br />
   <b>Beschreibung</b>: ${munichwaysBeschreibung}<br />`;
-    if (munichwaysMapillaryLink?.trim().length > 0) {
-        infoElement.innerHTML += `<a href="${munichwaysMapillaryLink}" target="_blank">In Mapillary öffnen</a><br />`;
-    }
-    if (previouslyMatchedOsmIds != null) {
-        infoElement.innerHTML += `☑️ wurde bereits zugeordnet<br />`;
-    } else {
-        infoElement.innerHTML += `˟ noch nicht zugeordnet<br />`;
-    }
-
-    const lineStringIn = dataRow[CARTO_GEOM_INDEX];
-
-    if (lineStringIn == null || lineStringIn.trim() == "") {
-        btnNext.disabled = false;
-        btnOSM.disabled = false;
-        btnSave.disabled = true;
-        rowNumText.disabled = false;
-        infoElement.innerHTML += "<br /><i><b>keine Carto Daten</b> - nutze den 'Linie zeichnen' Knopf, um per Mausklick eine Referenzlinie auf der Karte zu zeichnen.</i>";
-
+        if (munichwaysMapillaryLink?.trim().length > 0) {
+            infoElement.innerHTML += `<a href="${munichwaysMapillaryLink}" target="_blank">In Mapillary öffnen</a><br />`;
+        }
         if (previouslyMatchedOsmIds != null) {
-            await getOSMData(null, previouslyMatchedOsmIds);
+            infoElement.innerHTML += `☑️ wurde bereits zugeordnet<br />`;
+        } else {
+            infoElement.innerHTML += `˟ noch nicht zugeordnet<br />`;
         }
-        return;
-    }
 
-    if (lineStringIn.indexOf("MULTI") >= 0) {
-        btnNext.disabled = false;
-        btnSave.disabled = true;
-        rowNumText.disabled = false;
-        btnOSM.disabled = false;
-        return;
-    }
-    const coorString = lineStringIn.replace("LINESTRING(", "").replace(")", "");
-    const coordPairs = coorString.split(",");
-    const coordinates = coordPairs.map(pair => pair.trim().split(" ").map(coord => parseFloat(coord)));
-    const lineString = {
-        type: "Feature",
-        properties: {},
-        geometry: {
-            type: "LineString",
-            coordinates,
+        const lineStringIn = dataRow[CARTO_GEOM_INDEX];
+
+        if (lineStringIn == null || lineStringIn.trim() == "") {
+            resetControls(true, false, true);
+            infoElement.innerHTML += "<br /><i><b>keine Carto Daten</b> - nutze den 'Linie zeichnen' Knopf, um per Mausklick eine Referenzlinie auf der Karte zu zeichnen.</i>";
+
+            if (previouslyMatchedOsmIds != null) {
+                loadingStage = "OpenStreetMap-Daten";
+                await getOSMData(null, previouslyMatchedOsmIds);
+            }
+            hintElement.innerHTML = "";
+            return;
         }
-    };
-    baseVectorSource.addFeature(new GeoJSON().readFeature(lineString, { featureProjection: 'EPSG:3857' }));
-    try {
-        map.getView().fit(baseVectorSource.getExtent());
-    } catch (ignored) {
-        btnNext.disabled = false;
-        btnSave.disabled = true;
-        rowNumText.disabled = false;
-        btnOSM.disabled = false;
-        return;
+
+        if (lineStringIn.indexOf("MULTI") >= 0) {
+            resetControls(true, false, true);
+            return;
+        }
+        const coorString = lineStringIn.replace("LINESTRING(", "").replace(")", "");
+        const coordPairs = coorString.split(",");
+        const coordinates = coordPairs.map(pair => pair.trim().split(" ").map(coord => parseFloat(coord)));
+        const lineString = {
+            type: "Feature",
+            properties: {},
+            geometry: {
+                type: "LineString",
+                coordinates,
+            }
+        };
+        baseVectorSource.addFeature(new GeoJSON().readFeature(lineString, { featureProjection: 'EPSG:3857' }));
+        try {
+            map.getView().fit(baseVectorSource.getExtent());
+        } catch (ignored) {
+            resetControls(true, false, true);
+            return;
+        }
+
+        loadingStage = "OpenStreetMap-Daten";
+        await getOSMData(lineString, previouslyMatchedOsmIds || []);
+
+        resetControls(true, true, true);
+        hintElement.innerHTML = "";
+    } catch (error) {
+        console.error("editRow failed", error);
+        infoElement.innerHTML = `<h3>Masterlisten Element #${row}</h3><p>Der Eintrag konnte nicht geladen werden.</p>`;
+        showError(
+            `Der Eintrag konnte beim Schritt „${loadingStage}“ nicht geladen werden.`,
+            error instanceof Error ? error.message : String(error)
+        );
     }
-
-    await getOSMData(lineString, previouslyMatchedOsmIds || []);
-
-    btnNext.disabled = false;
-    btnSave.disabled = false;
-    rowNumText.disabled = false;
-    btnOSM.disabled = false;
-    hintElement.innerHTML = "";
 }
 
 async function saveResult() {
-    btnNext.disabled = true;
-    btnSave.disabled = true;
-    rowNumText.disabled = true;
-    btnOSM.disabled = true;
-    hintElement.innerHTML = "wird gespeichert ...";
+    setLoadingState("wird gespeichert ...");
 
-    const wayIds = [];
-    const featureCollection = {
-        type: "FeatureCollection",
-        features: [],
-    };
-    vectorSource.forEachFeature((feature) => {
-        if (feature.get('matched')) {
-            wayIds.push(feature.get('way'));
-            const coordinates = feature.getGeometry().getCoordinates().map(coord => transform(coord, 'EPSG:3857', 'EPSG:4326'));
-            const geoJson = {
-                type: "Feature",
-                geometry: {
-                    type: "LineString",
-                    coordinates,
-                },
-                properties: {
-                    osm_tags: feature.get("tags"),
-                    osm_id: feature.get("way"),
-                    munichways_id: munichwaysId,
-                    munichways_name: munichwaysName,
-                    munichways_happy_bike_level: munichwaysHappyBikeLevel,
-                    munichways_color: munichwaysFarbe,
-                    munichways_mapillary_link: munichwaysMapillaryLink,
-                    munichways_route_link: munichwaysStreckenLink,
-                    munichways_net_type_plan: munichwaysNetztypPlan,
-                    munichways_net_type_target: munichwaysNetztypZiel,
-                    munichways_current: munichwaysIst,
-                    munichways_target: munichwaysSoll,
-                    munichways_measure_category_link: munichwaysMassnahmenKategorieLink,
-                    munichways_description: munichwaysBeschreibung,
-                    munichways_status_implementation: munichwaysStatusUmsetzung,
-                    munichways_district_link: munichwaysBezirkLink,
-                    munichways_neuralgic_point: munichwaysNeuralgischerPunkt,
-                    munichways_links: munichwaysLinks,
-                    munichways_mw_rv_route: munichwaysMwRvStrecke,
-                }
-            };
-            featureCollection.features.push(geoJson);
+    try {
+        const wayIds = [];
+        const featureCollection = {
+            type: "FeatureCollection",
+            features: [],
+        };
+        vectorSource.forEachFeature((feature) => {
+            if (feature.get('matched')) {
+                wayIds.push(feature.get('way'));
+                const coordinates = feature.getGeometry().getCoordinates().map(coord => transform(coord, 'EPSG:3857', 'EPSG:4326'));
+                const geoJson = {
+                    type: "Feature",
+                    geometry: {
+                        type: "LineString",
+                        coordinates,
+                    },
+                    properties: {
+                        osm_tags: feature.get("tags"),
+                        osm_id: feature.get("way"),
+                        munichways_id: munichwaysId,
+                        munichways_name: munichwaysName,
+                        munichways_happy_bike_level: munichwaysHappyBikeLevel,
+                        munichways_color: munichwaysFarbe,
+                        munichways_mapillary_link: munichwaysMapillaryLink,
+                        munichways_route_link: munichwaysStreckenLink,
+                        munichways_net_type_plan: munichwaysNetztypPlan,
+                        munichways_net_type_target: munichwaysNetztypZiel,
+                        munichways_current: munichwaysIst,
+                        munichways_target: munichwaysSoll,
+                        munichways_measure_category_link: munichwaysMassnahmenKategorieLink,
+                        munichways_description: munichwaysBeschreibung,
+                        munichways_status_implementation: munichwaysStatusUmsetzung,
+                        munichways_district_link: munichwaysBezirkLink,
+                        munichways_neuralgic_point: munichwaysNeuralgischerPunkt,
+                        munichways_links: munichwaysLinks,
+                        munichways_mw_rv_route: munichwaysMwRvStrecke,
+                    }
+                };
+                featureCollection.features.push(geoJson);
+            }
+        });
+
+        if (existingFileId) {
+            console.log(`updating file ${existingFileId}`);
+            await updateFile(existingFileId, JSON.stringify(featureCollection));
+        } else {
+            console.log(`creating file ${munichwaysId}.json`);
+            await createFile(`${munichwaysId}.json`, JSON.stringify(featureCollection));
         }
-    });
 
-    if (existingFileId) {
-        console.log(`updating file ${existingFileId}`);
-        await updateFile(existingFileId, JSON.stringify(featureCollection));
-    } else {
-        console.log(`creating file ${munichwaysId}.json`);
-        await createFile(`${munichwaysId}.json`, JSON.stringify(featureCollection));
+        resetControls(true, true, true);
+        hintElement.innerHTML = "";
+    } catch (error) {
+        console.error("saveResult failed", error);
+        showError("Das Speichern ist fehlgeschlagen.", error instanceof Error ? error.message : String(error));
     }
-
-    btnNext.disabled = false;
-    btnSave.disabled = false;
-    btnOSM.disabled = false;
-    rowNumText.disabled = false;
-    hintElement.innerHTML = "";
 }
 
 const batchSize = 5000;
 let currentIndex = 1;
 const rowNumByMunichWaysId = new Map();
 let rowsReturned = 0;
-do {
-    const rows = await fetchSheetRows(currentIndex, batchSize);
-    rowsReturned = rows.length;
-    for (const i in rows) {
-        const [
-            munichWaysId,
-        ] = rows[i];
-        rowNumByMunichWaysId.set(munichWaysId, currentIndex + parseInt(i));
-    }
-    currentIndex += batchSize;
-} while (rowsReturned >= batchSize);
 
-editRow(currentRow);
+async function initializeApp() {
+    try {
+        do {
+            const rows = await fetchSheetRows(currentIndex, batchSize);
+            rowsReturned = rows.length;
+            for (const i in rows) {
+                const [
+                    munichWaysId,
+                ] = rows[i];
+                rowNumByMunichWaysId.set(munichWaysId, currentIndex + parseInt(i));
+            }
+            currentIndex += batchSize;
+        } while (rowsReturned >= batchSize);
+
+        await editRow(currentRow);
+    } catch (error) {
+        console.error("Initialisierung fehlgeschlagen", error);
+        showError("Die Anwendung konnte nicht initialisiert werden.", error instanceof Error ? error.message : String(error));
+    }
+}
+
+initializeApp();
 
 btnNext.onclick = async () => {
     currentRow++;

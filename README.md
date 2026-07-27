@@ -10,3 +10,10 @@ Webanwendung um die Einträge der [MunichWays Masterliste](https://docs.google.c
 
 ## Bedienung
 https://github.com/MunichWays/masterliste/wiki
+
+## Entwicklerinfo
+
+- `npm start` erstellt zuerst `dist/main.js` und startet danach `server.mjs` auf Port 8080.
+- OSM-Daten werden über den lokalen Proxy `/osm-api/*` von der offiziellen OSM-API geladen. Dadurch werden Browser-CORS-Probleme vermieden.
+- Nach Änderungen Browser-Cache leeren bzw. die Versionskennung in `index.html` anpassen und mit `Strg+F5` neu laden.
+- Die aktuell geladene Version ist als Build-Kennung in der Oberfläche sichtbar.
