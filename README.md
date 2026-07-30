@@ -17,3 +17,38 @@ https://github.com/MunichWays/masterliste/wiki
 - OSM-Daten werden über den lokalen Proxy `/osm-api/*` von der offiziellen OSM-API geladen. Dadurch werden Browser-CORS-Probleme vermieden.
 - Nach Änderungen Browser-Cache leeren bzw. die Versionskennung in `index.html` anpassen und mit `Strg+F5` neu laden.
 - Die aktuell geladene Version ist als Build-Kennung in der Oberfläche sichtbar.
+
+## GeoJSON-Export
+
+`node create_geojson.mjs` erzeugt drei Dateien:
+
+- `IST_RadlVorrangNetz_Oberbayern_V20.geojson`: vollständiger bisheriger
+  V20-Datenbestand für Oberbayern.
+- `IST_RadlVorrangNetz_MunichWays_V20.geojson`: vollständige V20-Felder,
+  begrenzt auf München. Masterlisten-Einträge werden über das Präfix `LHM`
+  gefiltert, reine OSM-Einträge über die amtlichen Stadtbezirksgrenzen.
+- `happy_bike_level_munich.geojson`: schlanke München-Datei.
+
+Die schlanke München-Datei enthält nur Geometrie sowie `munichways_id`,
+`osm_id`, `color` und `munichways_mw_rv_route`. Features mit `color: "blue"`
+(`class:bicycle=0`) werden nicht exportiert. Die Stadtbezirksgrenzen stammen
+vom WFS des GeodatenService München und werden in WGS84 geladen.
+
+Eine vorhandene V20-Datei kann ohne Google-Zugang und OSM-Download lokal
+konvertiert werden:
+
+```sh
+npm run build:happy-bike-level
+```
+
+Eigene Ein- und Ausgabepfade können direkt an das Script übergeben werden:
+
+```sh
+node scripts/build_happy_bike_level.mjs input.geojson output.geojson
+```
+
+Tests:
+
+```sh
+npm test
+```

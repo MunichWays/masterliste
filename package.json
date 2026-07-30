@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.mjs",
-    "prestart": "rollup -c rollup.config.js"
+    "prestart": "rollup -c rollup.config.js",
+    "test": "node --test",
+    "build:happy-bike-level": "node scripts/build_happy_bike_level.mjs"
   },
   "author": "",
   "license": "ISC",

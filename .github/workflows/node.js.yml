@@ -7,9 +7,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Use Node.js 24.x
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v5
       with:
         node-version: 24.x
         cache: 'npm'
@@ -20,7 +20,10 @@ jobs:
       run: |
         echo "${SERVICE_ACCOUNT_JSON}" >> secret.json
         node create_geojson.mjs
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v6
       with:
         name: geojson
-        path: IST_RadlVorrangNetz_MunichWays_V20.geojson
+        path: |
+          IST_RadlVorrangNetz_MunichWays_V20.geojson
+          IST_RadlVorrangNetz_Oberbayern_V20.geojson
+          happy_bike_level_munich.geojson
