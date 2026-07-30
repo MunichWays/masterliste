@@ -43,6 +43,25 @@ const FOLDER_ID = "1bbPddqZ4heiq5Zpg0CAGedItJ3b_s6OW";
 
 let currentRow = 1;
 let drawLine = false;
+let hasUnsavedChanges = false;
+
+const setUnsavedChanges = (isDirty) => {
+    hasUnsavedChanges = isDirty;
+    btnSave.innerText = isDirty ? "Speichern – ungespeichert!" : "Speichern";
+    btnSave.style.backgroundColor = isDirty ? "#ffe08a" : "";
+    btnSave.style.fontWeight = isDirty ? "bold" : "";
+    btnSave.title = isDirty ? "Es gibt Änderungen, die noch nicht gespeichert wurden." : "";
+};
+
+const confirmDiscardChanges = () =>
+    !hasUnsavedChanges || window.confirm("Es gibt ungespeicherte Änderungen. Trotzdem einen anderen Eintrag laden?");
+
+window.addEventListener("beforeunload", (event) => {
+    if (hasUnsavedChanges) {
+        event.preventDefault();
+        event.returnValue = "";
+    }
+});
 
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 20000) => {
     const controller = new AbortController();
@@ -211,6 +230,7 @@ map.on('click', (e) => {
                 feature.set('matched', !feature.get('matched'));
                 console.log(feature.getProperties());
                 btnSave.disabled = false;
+                setUnsavedChanges(true);
             }
         });
     }
@@ -470,6 +490,7 @@ async function getOSMData(lineFeature, ids) {
 
 async function editRow(row) {
     setLoadingState();
+    setUnsavedChanges(false);
     rowNumText.value = row;
     vectorSource.clear();
     baseVectorSource.clear();
@@ -654,6 +675,7 @@ async function saveResult() {
         }
 
         resetControls(true, true, true);
+        setUnsavedChanges(false);
         hintElement.innerHTML = "";
     } catch (error) {
         console.error("saveResult failed", error);
@@ -690,6 +712,9 @@ async function initializeApp() {
 initializeApp();
 
 btnNext.onclick = async () => {
+    if (!confirmDiscardChanges()) {
+        return;
+    }
     currentRow++;
     await editRow(currentRow);
 
@@ -710,13 +735,17 @@ btnSave.onclick = async () => {
     }
 };
 
-rowNumText.onchange = (e) => {
+rowNumText.onchange = async (e) => {
+    if (!confirmDiscardChanges()) {
+        rowNumText.value = currentRow;
+        return;
+    }
     let temp = currentRow;
     currentRow = parseInt(rowNumText.value);
     if (isNaN(currentRow)) {
         if (rowNumByMunichWaysId.has(rowNumText.value)) {
             currentRow = rowNumByMunichWaysId.get(rowNumText.value);
-            editRow(currentRow);
+            await editRow(currentRow);
             return;
         }
 
@@ -724,7 +753,7 @@ rowNumText.onchange = (e) => {
         rowNumText.value = currentRow;
         return;
     }
-    editRow(currentRow);
+    await editRow(currentRow);
 };
 
 btnOSM.onclick = async () => {
