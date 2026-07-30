@@ -2,6 +2,7 @@ import {createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync} f
 import osmRead from 'osm-read';
 import crypto from 'crypto';
 import {buildHappyBikeLevelGeoJson} from './happy_bike_level.mjs';
+import {buildMunichGeoJson} from './munich_geojson.mjs';
 
 if (!existsSync("secret.json")) {
     console.log("File secret.json is not present, please create it for an appropriate service account in Google Cloud Console.");
@@ -16,6 +17,7 @@ const {
 
 const FOLDER_ID = '1bbPddqZ4heiq5Zpg0CAGedItJ3b_s6OW';
 const SHEET_NAME = 'webapp';
+const MUNICH_DISTRICTS_URL = 'https://geoportal.muenchen.de/geoserver/gsm_wfs/ows?outputFormat=application%2Fjson&request=GetFeature&service=WFS&typeName=gsm_wfs%3Avablock_stadtbezirk&version=1.0.0&srsName=EPSG%3A4326';
 
 const header = JSON.stringify({"alg":"RS256","typ":"JWT"});
 const b64Header = Buffer.from(header, 'utf-8').toString('base64');
@@ -349,15 +351,26 @@ for (const way of bicycleWays) {
         }
     });
 }
-const geoJson = {
+const oberbayernGeoJson = {
     type: "FeatureCollection",
     features,
 }
-console.log("writing output file IST_RadlVorrangNetz_MunichWays_V20.geojson ...");
-writeFileSync("./IST_RadlVorrangNetz_MunichWays_V20.geojson", JSON.stringify(geoJson));
+console.log(`writing output file IST_RadlVorrangNetz_Oberbayern_V20.geojson (${oberbayernGeoJson.features.length} features) ...`);
+writeFileSync("./IST_RadlVorrangNetz_Oberbayern_V20.geojson", JSON.stringify(oberbayernGeoJson));
 
-const happyBikeLevelGeoJson = buildHappyBikeLevelGeoJson(geoJson);
-console.log("writing output file happy_bike_level.geojson ...");
-writeFileSync("./happy_bike_level.geojson", JSON.stringify(happyBikeLevelGeoJson));
+console.log("loading official Munich district boundaries ...");
+const munichDistrictsResponse = await fetch(MUNICH_DISTRICTS_URL);
+if (!munichDistrictsResponse.ok) {
+    throw new Error(`Could not load Munich district boundaries: ${munichDistrictsResponse.status} ${munichDistrictsResponse.statusText}`);
+}
+const munichDistricts = await munichDistrictsResponse.json();
+const munichGeoJson = buildMunichGeoJson(oberbayernGeoJson, munichDistricts);
+
+console.log(`writing output file IST_RadlVorrangNetz_MunichWays_V20.geojson (${munichGeoJson.features.length} features) ...`);
+writeFileSync("./IST_RadlVorrangNetz_MunichWays_V20.geojson", JSON.stringify(munichGeoJson));
+
+const happyBikeLevelGeoJson = buildHappyBikeLevelGeoJson(munichGeoJson);
+console.log(`writing output file happy_bike_level_munich.geojson (${happyBikeLevelGeoJson.features.length} features) ...`);
+writeFileSync("./happy_bike_level_munich.geojson", JSON.stringify(happyBikeLevelGeoJson));
 
 console.log("done!")

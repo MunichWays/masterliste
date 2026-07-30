@@ -25,4 +25,5 @@ jobs:
         name: geojson
         path: |
           IST_RadlVorrangNetz_MunichWays_V20.geojson
-          happy_bike_level.geojson
+          IST_RadlVorrangNetz_Oberbayern_V20.geojson
+          happy_bike_level_munich.geojson

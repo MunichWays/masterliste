@@ -20,13 +20,19 @@ https://github.com/MunichWays/masterliste/wiki
 
 ## GeoJSON-Export
 
-`node create_geojson.mjs` erzeugt weiterhin die vollständige Datei
-`IST_RadlVorrangNetz_MunichWays_V20.geojson` und zusätzlich die schlanke Datei
-`happy_bike_level.geojson`.
+`node create_geojson.mjs` erzeugt drei Dateien:
 
-Die schlanke Datei enthält nur Geometrie sowie `munichways_id`, `osm_id`,
-`color` und `munichways_mw_rv_route`. Features mit `color: "blue"`
-(`class:bicycle=0`) werden nicht exportiert.
+- `IST_RadlVorrangNetz_Oberbayern_V20.geojson`: vollständiger bisheriger
+  V20-Datenbestand für Oberbayern.
+- `IST_RadlVorrangNetz_MunichWays_V20.geojson`: vollständige V20-Felder,
+  begrenzt auf München. Masterlisten-Einträge werden über das Präfix `LHM`
+  gefiltert, reine OSM-Einträge über die amtlichen Stadtbezirksgrenzen.
+- `happy_bike_level_munich.geojson`: schlanke München-Datei.
+
+Die schlanke München-Datei enthält nur Geometrie sowie `munichways_id`,
+`osm_id`, `color` und `munichways_mw_rv_route`. Features mit `color: "blue"`
+(`class:bicycle=0`) werden nicht exportiert. Die Stadtbezirksgrenzen stammen
+vom WFS des GeodatenService München und werden in WGS84 geladen.
 
 Eine vorhandene V20-Datei kann ohne Google-Zugang und OSM-Download lokal
 konvertiert werden:
