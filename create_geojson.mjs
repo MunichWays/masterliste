@@ -1,6 +1,7 @@
 import {createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync} from 'fs';
 import osmRead from 'osm-read';
 import crypto from 'crypto';
+import {buildHappyBikeLevelGeoJson} from './happy_bike_level.mjs';
 
 if (!existsSync("secret.json")) {
     console.log("File secret.json is not present, please create it for an appropriate service account in Google Cloud Console.");
@@ -354,5 +355,9 @@ const geoJson = {
 }
 console.log("writing output file IST_RadlVorrangNetz_MunichWays_V20.geojson ...");
 writeFileSync("./IST_RadlVorrangNetz_MunichWays_V20.geojson", JSON.stringify(geoJson));
+
+const happyBikeLevelGeoJson = buildHappyBikeLevelGeoJson(geoJson);
+console.log("writing output file happy_bike_level.geojson ...");
+writeFileSync("./happy_bike_level.geojson", JSON.stringify(happyBikeLevelGeoJson));
 
 console.log("done!")
