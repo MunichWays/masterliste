@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {buildHappyBikeLevelGeoJson} from "../happy_bike_level.mjs";
+import {
+    buildHappyBikeLevelGeoJson,
+    hasRadlVorrangRoute,
+} from "../happy_bike_level.mjs";
 
 const line = {
     type: "LineString",
@@ -84,5 +87,40 @@ test("preserves the V20 RadlVorrang value unchanged", () => {
     assert.equal(
         result.features[0].properties.munichways_mw_rv_route,
         sourceValue,
+    );
+});
+
+test("recognizes RadlVorrang routes including mixed V20 values", () => {
+    assert.equal(hasRadlVorrangRoute("Standard"), true);
+    assert.equal(hasRadlVorrangRoute("-, Premium, Standard"), true);
+    assert.equal(hasRadlVorrangRoute("-"), false);
+    assert.equal(hasRadlVorrangRoute("  "), false);
+    assert.equal(hasRadlVorrangRoute(null), false);
+});
+
+test("can create a compact RadlVorrang-only export", () => {
+    const features = [
+        ["RV", "Standard"],
+        ["mixed", "-, Premium"],
+        ["not-rv", "-"],
+        ["missing", null],
+    ].map(([id, route]) => ({
+        type: "Feature",
+        geometry: line,
+        properties: {
+            munichways_id: id,
+            color: "green",
+            munichways_mw_rv_route: route,
+        },
+    }));
+
+    const result = buildHappyBikeLevelGeoJson(
+        {type: "FeatureCollection", features},
+        {radlVorrangOnly: true},
+    );
+
+    assert.deepEqual(
+        result.features.map(feature => feature.properties.munichways_id),
+        ["RV", "mixed"],
     );
 });

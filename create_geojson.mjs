@@ -373,4 +373,15 @@ const happyBikeLevelGeoJson = buildHappyBikeLevelGeoJson(munichGeoJson);
 console.log(`writing output file happy_bike_level_munich.geojson (${happyBikeLevelGeoJson.features.length} features) ...`);
 writeFileSync("./happy_bike_level_munich.geojson", JSON.stringify(happyBikeLevelGeoJson));
 
+const happyBikeLevelMunichRvGeoJson = buildHappyBikeLevelGeoJson(
+    munichGeoJson,
+    {radlVorrangOnly: true},
+);
+console.log(`writing output file happy_bike_level_munich_RV.geojson (${happyBikeLevelMunichRvGeoJson.features.length} features) ...`);
+writeFileSync("./happy_bike_level_munich_RV.geojson", JSON.stringify(happyBikeLevelMunichRvGeoJson));
+
+const happyBikeLevelOberbayernGeoJson = buildHappyBikeLevelGeoJson(oberbayernGeoJson);
+console.log(`writing output file happy_bike_level_oberbayern.geojson (${happyBikeLevelOberbayernGeoJson.features.length} features) ...`);
+writeFileSync("./happy_bike_level_oberbayern.geojson", JSON.stringify(happyBikeLevelOberbayernGeoJson));
+
 console.log("done!")
