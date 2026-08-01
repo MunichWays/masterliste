@@ -27,3 +27,5 @@ jobs:
           IST_RadlVorrangNetz_MunichWays_V20.geojson
           IST_RadlVorrangNetz_Oberbayern_V20.geojson
           happy_bike_level_munich.geojson
+          happy_bike_level_munich_RV.geojson
+          happy_bike_level_oberbayern.geojson
