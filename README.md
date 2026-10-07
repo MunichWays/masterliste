@@ -87,7 +87,7 @@ Repository-Konfiguration unter Settings → Secrets and variables → Actions:
 - Variable `GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID`: ID des Google-Drive-Download-Ordners
   (laut Issue #4: `1u4Q1dyMuB1n0j2_YgQxiK_xfLVC1VYE9`; vor Einrichtung prüfen).
 - Variablen `FTP_SERVER` (Hostname ohne Protokoll oder Pfad, z. B. `ftp.munichways.de`)
-  und `FTP_USER`; Secret `FTP_PASSWORD`. Das Script bildet daraus
+  und `FTP_USERNAME`; Secret `FTP_PASSWORD`. Das Script bildet daraus
   `ftp://ftp.munichways.de/App/` und verwendet FTP mit TLS. Der Server muss TLS unterstützen.
 
 Die Variablen und Secrets können in den Organisationseinstellungen von MunichWays

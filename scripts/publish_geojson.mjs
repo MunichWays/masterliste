@@ -79,7 +79,7 @@ export function publishFtp(contents, env, run = spawnSync, now = new Date()) {
     const timestamp = now.toISOString().replaceAll(':', '-');
     // Credentials go through stdin, never command-line arguments or logs.
     const escape = value => value.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('\n', '\\n').replaceAll('\r', '\\r');
-    const credentials = 'user = "' + escape(env.FTP_USER + ':' + env.FTP_PASSWORD) + '"\n';
+    const credentials = 'user = "' + escape(env.FTP_USERNAME + ':' + env.FTP_PASSWORD) + '"\n';
     const url = name => new URL(name, base).href;
     const invoke = (args, input) => run('curl', ['--silent', '--show-error', '--fail', '--ssl-reqd', '--connect-timeout', '30', '--max-time', '600', '--config', '-', ...args], {input, maxBuffer: 256 * 1024 * 1024});
     // Read every existing version before changing any current file.
@@ -110,7 +110,7 @@ export function publishFtp(contents, env, run = spawnSync, now = new Date()) {
 }
 
 export async function main(env = process.env) {
-    for (const key of ['GOOGLE_DRIVE_UPLOAD_SERVICE_ACCOUNT_JSON', 'GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID', 'FTP_SERVER', 'FTP_USER', 'FTP_PASSWORD']) {
+    for (const key of ['GOOGLE_DRIVE_UPLOAD_SERVICE_ACCOUNT_JSON', 'GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID', 'FTP_SERVER', 'FTP_USERNAME', 'FTP_PASSWORD']) {
         if (!env[key]) throw new Error('Missing configuration: ' + key);
     }
     const contents = new Map();

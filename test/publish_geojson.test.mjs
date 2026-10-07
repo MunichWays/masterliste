@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {files, publishDrive, publishFtp} from '../scripts/publish_geojson.mjs';
 
 const contents = new Map(files.map(name => [name, 'new-' + name]));
-const env = {FTP_SERVER: 'example.org', FTP_USER: 'user', FTP_PASSWORD: 'password'};
+const env = {FTP_SERVER: 'example.org', FTP_USERNAME: 'user', FTP_PASSWORD: 'password'};
 const ftpUrl = 'ftp://' + env.FTP_SERVER + '/App/';
 const now = new Date('2026-10-07T18:00:00.000Z');
 
