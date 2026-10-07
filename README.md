@@ -81,7 +81,9 @@ müssen erfolgreich hochgeladen sein, bevor aktuelle FTP-Dateien ersetzt werden.
 Repository-Konfiguration unter Settings → Secrets and variables → Actions:
 
 - Secret `SERVICE_ACCOUNT_JSON`: bestehendes Google-Servicekonto mit
-  Lesezugriff auf die Quelldaten und Schreibzugriff auf den Download-Ordner.
+  Lesezugriff auf die Quelldaten für den Export.
+- Secret `GOOGLE_DRIVE_UPLOAD_SERVICE_ACCOUNT_JSON`: separates Upload-Servicekonto
+  mit Schreibzugriff auf den Download-Ordner in der Google-Workspace-Geteilten Ablage.
 - Variable `GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID`: ID des Google-Drive-Download-Ordners
   (laut Issue #4: `1u4Q1dyMuB1n0j2_YgQxiK_xfLVC1VYE9`; vor Einrichtung prüfen).
 - Variablen `FTP_URL` (muss auf das Verzeichnis `App/` zeigen, z. B. `ftp://example.org/App/`)

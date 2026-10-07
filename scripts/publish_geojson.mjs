@@ -112,7 +112,7 @@ export function publishFtp(contents, env, run = spawnSync, now = new Date()) {
 }
 
 export async function main(env = process.env) {
-    for (const key of ['SERVICE_ACCOUNT_JSON', 'GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID', 'FTP_URL', 'FTP_USER', 'FTP_PASSWORD']) {
+    for (const key of ['GOOGLE_DRIVE_UPLOAD_SERVICE_ACCOUNT_JSON', 'GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID', 'FTP_URL', 'FTP_USER', 'FTP_PASSWORD']) {
         if (!env[key]) throw new Error('Missing configuration: ' + key);
     }
     const contents = new Map();
@@ -122,7 +122,7 @@ export async function main(env = process.env) {
         if (data.type !== 'FeatureCollection' || !Array.isArray(data.features) || data.features.length === 0) throw new Error('Invalid or empty GeoJSON: ' + name);
         contents.set(name, body);
     }
-    const token = await getToken(JSON.parse(env.SERVICE_ACCOUNT_JSON));
+    const token = await getToken(JSON.parse(env.GOOGLE_DRIVE_UPLOAD_SERVICE_ACCOUNT_JSON));
     await publishDrive(contents, env.GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID, token);
     publishFtp(contents, env);
 }

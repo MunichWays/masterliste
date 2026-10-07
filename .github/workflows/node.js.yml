@@ -70,7 +70,7 @@ jobs:
             happy_bike_level_oberbayern.geojson
       - name: Publish to Google Drive and FTP
         env:
-          SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          GOOGLE_DRIVE_UPLOAD_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_UPLOAD_SERVICE_ACCOUNT_JSON }}
           GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID }}
           FTP_URL: ${{ vars.FTP_URL }}
           FTP_USER: ${{ vars.FTP_USER }}
