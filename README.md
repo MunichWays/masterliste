@@ -77,6 +77,9 @@ Archiviert werden die neu erzeugten Dateien des jeweiligen Laufs, beispielsweise
 `happy_bike_level_munich_2026-10-07_18-00-00.geojson` (UTC).
 Bestehende Archive bleiben erhalten. Nach dem Upload prüft lftp alle fünf
 aktuellen Dateien und ihre fünf datierten Kopien auf Vorhandensein.
+Aktuelle Dateien und Archive erhalten explizit die Berechtigung `644`
+(Eigentümer darf schreiben, alle dürfen lesen), lokal vor dem Upload und
+anschließend auf dem FTP-Server.
 TLS- und Zertifikats-Einstellungen entsprechen dem Referenz-Workflow.
 
 Repository-Konfiguration unter Settings → Secrets and variables → Actions:

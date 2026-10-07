@@ -95,6 +95,8 @@ jobs:
           for file in "${files[@]}"; do
             cp "$file" "ftp-upload/current/$file"
             cp "$file" "ftp-upload/save/${file%.geojson}_$DEPLOY_TIME.geojson"
+            chmod 644 "ftp-upload/current/$file" \
+              "ftp-upload/save/${file%.geojson}_$DEPLOY_TIME.geojson"
           done
 
       - name: Install lftp
@@ -163,6 +165,8 @@ jobs:
             set ftp:ssl-protect-data yes
             set ssl:verify-certificate yes
             set ssl:check-hostname no
+            chmod 644 "$FTP_TARGET_PATH/$file"
+            chmod 644 "$FTP_SAVE_PATH/$backup"
             cls "$FTP_TARGET_PATH/$file"
             cls "$FTP_SAVE_PATH/$backup"
             bye
