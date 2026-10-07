@@ -69,14 +69,15 @@ In Google Drive liegen nur die aktuellen Dateien; der Workflow erzeugt dort
 keine Sicherungskopien. Bestehende Dateien werden aktualisiert, damit ihre IDs
 und Links erhalten bleiben.
 
-Auf FTP liegen die aktuellen fünf Dateien direkt in `App/` unter ihren
-ursprünglichen Namen ohne Datum. Vor dem Überschreiben werden alle vorhandenen
-Versionen in `App/save/` mit einem UTC-Zeitstempel im Namen gesichert,
-z. B. `happy_bike_level_munich_2026-10-07T18-00-00.000Z.geojson`.
-Der Zeitstempel bezeichnet den Sicherungszeitpunkt. Fehlt eine Datei beim
-Erstlauf, wird nur für diese Datei keine Sicherung angelegt. Alle Sicherungen
-müssen erfolgreich hochgeladen sein, bevor aktuelle FTP-Dateien ersetzt werden.
-`App/save/` wird bei Bedarf angelegt; bestehende Sicherungen bleiben erhalten.
+Die FTP-Veröffentlichung übernimmt die lftp-Schritte aus dem
+[radlvorrangnetz-export-Workflow](https://github.com/MunichWays/radlvorrangnetz-export/blob/main/.github/workflows/export.yml).
+Das FTP-Konto startet bereits im Web-Verzeichnis `App/`: Aktuelle Dateien
+werden nach `.` hochgeladen, datierte Kopien nach `/save` (Web-Pfad `App/save/`).
+Archiviert werden die neu erzeugten Dateien des jeweiligen Laufs, beispielsweise
+`happy_bike_level_munich_2026-10-07_18-00-00.geojson` (UTC).
+Bestehende Archive bleiben erhalten. Nach dem Upload prüft lftp alle fünf
+aktuellen Dateien und ihre fünf datierten Kopien auf Vorhandensein.
+TLS- und Zertifikats-Einstellungen entsprechen dem Referenz-Workflow.
 
 Repository-Konfiguration unter Settings → Secrets and variables → Actions:
 
@@ -86,13 +87,9 @@ Repository-Konfiguration unter Settings → Secrets and variables → Actions:
   mit Schreibzugriff auf den Download-Ordner in der Google-Workspace-Geteilten Ablage.
 - Variable `GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID`: ID des Google-Drive-Download-Ordners
   (laut Issue #4: `1u4Q1dyMuB1n0j2_YgQxiK_xfLVC1VYE9`; vor Einrichtung prüfen).
-- Variablen `FTP_SERVER` (Hostname ohne Protokoll oder Pfad, z. B. `ftp.munichways.de`)
-  und `FTP_USERNAME`; Secret `FTP_PASSWORD`. Das Script bildet daraus
-  `ftp://ftp.munichways.de/App/` und verwendet FTP mit TLS. Der Server muss TLS unterstützen.
-- Optionale Variable `FTP_PATH`: Ziel relativ zum FTP-Anmeldeverzeichnis,
-  standardmäßig `/App/`. Wenn das Konto bereits direkt in `App` startet,
-  auf `/` setzen. Sicherungen liegen dann im dortigen Unterordner `save/`.
-  Der Pfad muss mit `/` beginnen und enden.
+- Variablen `FTP_SERVER` (z. B. `ftp.munichways.de`) und `FTP_USERNAME`;
+  Secret `FTP_PASSWORD`. Das Konto muss im Verzeichnis `App/` starten.
+  `FTP_URL` und `FTP_PATH` werden nicht verwendet.
 
 Die Variablen und Secrets können in den Organisationseinstellungen von MunichWays
 unter Secrets and variables → Actions liegen. Die Zugriffsrichtlinie muss das
