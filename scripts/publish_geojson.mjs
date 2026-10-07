@@ -1,9 +1,5 @@
 import {readFile} from 'node:fs/promises';
-import {mkdtempSync, writeFileSync, rmSync} from 'node:fs';
-import {tmpdir} from 'node:os';
-import {join} from 'node:path';
 import {createPrivateKey, sign} from 'node:crypto';
-import {spawnSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 
 export const files = [
@@ -71,48 +67,8 @@ export async function publishDrive(contents, folder, token, request = fetch) {
     for (const name of files) await upload(name, contents.get(name));
 }
 
-export function publishFtp(contents, env, run = spawnSync, now = new Date()) {
-    const base = new URL(env.FTP_URL);
-    if (!['ftp:', 'ftps:'].includes(base.protocol) || base.username || base.password || base.search || base.hash) {
-        throw new Error('FTP_URL must be an ftp:// or ftps:// directory URL without credentials');
-    }
-    if (!base.pathname.endsWith('/')) base.pathname += '/';
-    if (!base.pathname.endsWith('/App/')) throw new Error('FTP_URL must point to the App/ directory');
-    const timestamp = now.toISOString().replaceAll(':', '-');
-    // Credentials go through stdin, never command-line arguments or logs.
-    const escape = value => value.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('\n', '\\n').replaceAll('\r', '\\r');
-    const credentials = 'user = "' + escape(env.FTP_USER + ':' + env.FTP_PASSWORD) + '"\n';
-    const url = name => new URL(name, base).href;
-    const invoke = (args, input) => run('curl', ['--silent', '--show-error', '--fail', '--ssl-reqd', '--connect-timeout', '30', '--max-time', '600', '--config', '-', ...args], {input, maxBuffer: 256 * 1024 * 1024});
-    // Read every existing version before changing any current file.
-    const backups = new Map();
-    for (const name of files) {
-        const old = invoke([url(name)], credentials);
-        if (old.error || (old.status !== 0 && old.status !== 78)) {
-            throw new Error('FTP download failed: ' + name);
-        }
-        if (old.status === 0) backups.set(name, old.stdout);
-    }
-    const directory = mkdtempSync(join(tmpdir(), 'geojson-ftp-'));
-    const config = join(directory, 'curl.conf');
-    try {
-        writeFileSync(config, credentials, {mode: 0o600});
-        const send = (name, body) => {
-            const result = run('curl', ['--silent', '--show-error', '--fail', '--ssl-reqd', '--connect-timeout', '30', '--max-time', '600', '--config', config, '--ftp-create-dirs', '--upload-file', '-', url(name)],
-                {input: body, maxBuffer: 1024 * 1024});
-            if (result.error || result.status !== 0) throw new Error('FTP upload failed: ' + name);
-        };
-        for (const [name, body] of backups) {
-            send('save/' + name.replace('.geojson', '_' + timestamp + '.geojson'), body);
-        }
-        for (const name of files) send(name, contents.get(name));
-    } finally {
-        rmSync(directory, {recursive: true, force: true});
-    }
-}
-
 export async function main(env = process.env) {
-    for (const key of ['SERVICE_ACCOUNT_JSON', 'GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID', 'FTP_URL', 'FTP_USER', 'FTP_PASSWORD']) {
+    for (const key of ['GOOGLE_DRIVE_UPLOAD_SERVICE_ACCOUNT_JSON', 'GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID']) {
         if (!env[key]) throw new Error('Missing configuration: ' + key);
     }
     const contents = new Map();
@@ -122,9 +78,8 @@ export async function main(env = process.env) {
         if (data.type !== 'FeatureCollection' || !Array.isArray(data.features) || data.features.length === 0) throw new Error('Invalid or empty GeoJSON: ' + name);
         contents.set(name, body);
     }
-    const token = await getToken(JSON.parse(env.SERVICE_ACCOUNT_JSON));
+    const token = await getToken(JSON.parse(env.GOOGLE_DRIVE_UPLOAD_SERVICE_ACCOUNT_JSON));
     await publishDrive(contents, env.GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID, token);
-    publishFtp(contents, env);
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
     main().catch(error => { console.error(error.message); process.exitCode = 1; });

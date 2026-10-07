@@ -69,23 +69,34 @@ In Google Drive liegen nur die aktuellen Dateien; der Workflow erzeugt dort
 keine Sicherungskopien. Bestehende Dateien werden aktualisiert, damit ihre IDs
 und Links erhalten bleiben.
 
-Auf FTP liegen die aktuellen fünf Dateien direkt in `App/` unter ihren
-ursprünglichen Namen ohne Datum. Vor dem Überschreiben werden alle vorhandenen
-Versionen in `App/save/` mit einem UTC-Zeitstempel im Namen gesichert,
-z. B. `happy_bike_level_munich_2026-10-07T18-00-00.000Z.geojson`.
-Der Zeitstempel bezeichnet den Sicherungszeitpunkt. Fehlt eine Datei beim
-Erstlauf, wird nur für diese Datei keine Sicherung angelegt. Alle Sicherungen
-müssen erfolgreich hochgeladen sein, bevor aktuelle FTP-Dateien ersetzt werden.
-`App/save/` wird bei Bedarf angelegt; bestehende Sicherungen bleiben erhalten.
+Die FTP-Veröffentlichung übernimmt die lftp-Schritte aus dem
+[radlvorrangnetz-export-Workflow](https://github.com/MunichWays/radlvorrangnetz-export/blob/main/.github/workflows/export.yml).
+Das FTP-Konto startet bereits im Web-Verzeichnis `App/`: Aktuelle Dateien
+werden nach `.` hochgeladen, datierte Kopien nach `/save` (Web-Pfad `App/save/`).
+Archiviert werden die neu erzeugten Dateien des jeweiligen Laufs, beispielsweise
+`happy_bike_level_munich_2026-10-07_18-00-00.geojson` (UTC).
+Bestehende Archive bleiben erhalten. Nach dem Upload prüft lftp alle fünf
+aktuellen Dateien und ihre fünf datierten Kopien auf Vorhandensein.
+Aktuelle Dateien und Archive erhalten explizit die Berechtigung `644`
+(Eigentümer darf schreiben, alle dürfen lesen), lokal vor dem Upload und
+anschließend auf dem FTP-Server.
+TLS- und Zertifikats-Einstellungen entsprechen dem Referenz-Workflow.
 
 Repository-Konfiguration unter Settings → Secrets and variables → Actions:
 
 - Secret `SERVICE_ACCOUNT_JSON`: bestehendes Google-Servicekonto mit
-  Lesezugriff auf die Quelldaten und Schreibzugriff auf den Download-Ordner.
+  Lesezugriff auf die Quelldaten für den Export.
+- Secret `GOOGLE_DRIVE_UPLOAD_SERVICE_ACCOUNT_JSON`: separates Upload-Servicekonto
+  mit Schreibzugriff auf den Download-Ordner in der Google-Workspace-Geteilten Ablage.
 - Variable `GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID`: ID des Google-Drive-Download-Ordners
   (laut Issue #4: `1u4Q1dyMuB1n0j2_YgQxiK_xfLVC1VYE9`; vor Einrichtung prüfen).
-- Secrets `FTP_URL` (muss auf das Verzeichnis `App/` zeigen, z. B. `ftp://example.org/App/`),
-  `FTP_USER` und `FTP_PASSWORD`. Der Server muss TLS unterstützen.
+- Variablen `FTP_SERVER` (z. B. `ftp.munichways.de`) und `FTP_USERNAME`;
+  Secret `FTP_PASSWORD`. Das Konto muss im Verzeichnis `App/` starten.
+  `FTP_URL` und `FTP_PATH` werden nicht verwendet.
+
+Die Variablen und Secrets können in den Organisationseinstellungen von MunichWays
+unter Secrets and variables → Actions liegen. Die Zugriffsrichtlinie muss das
+Repository `masterliste` einschließen.
 
 Fehlende Konfiguration oder Uploadfehler lassen den Workflow fehlschlagen;
 das Build-Artefakt bleibt verfügbar. Die beiden Ziele werden nacheinander
