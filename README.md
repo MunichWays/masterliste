@@ -89,6 +89,10 @@ Repository-Konfiguration unter Settings → Secrets and variables → Actions:
 - Variablen `FTP_SERVER` (Hostname ohne Protokoll oder Pfad, z. B. `ftp.munichways.de`)
   und `FTP_USERNAME`; Secret `FTP_PASSWORD`. Das Script bildet daraus
   `ftp://ftp.munichways.de/App/` und verwendet FTP mit TLS. Der Server muss TLS unterstützen.
+- Optionale Variable `FTP_PATH`: Ziel relativ zum FTP-Anmeldeverzeichnis,
+  standardmäßig `/App/`. Wenn das Konto bereits direkt in `App` startet,
+  auf `/` setzen. Sicherungen liegen dann im dortigen Unterordner `save/`.
+  Der Pfad muss mit `/` beginnen und enden.
 
 Die Variablen und Secrets können in den Organisationseinstellungen von MunichWays
 unter Secrets and variables → Actions liegen. Die Zugriffsrichtlinie muss das

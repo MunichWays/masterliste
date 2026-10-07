@@ -73,6 +73,7 @@ jobs:
           GOOGLE_DRIVE_UPLOAD_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_UPLOAD_SERVICE_ACCOUNT_JSON }}
           GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID }}
           FTP_SERVER: ${{ vars.FTP_SERVER }}
+          FTP_PATH: ${{ vars.FTP_PATH }}
           FTP_USERNAME: ${{ vars.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: node scripts/publish_geojson.mjs

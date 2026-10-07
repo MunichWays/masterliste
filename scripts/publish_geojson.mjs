@@ -75,7 +75,18 @@ export function publishFtp(contents, env, run = spawnSync, now = new Date()) {
     if (!/^[A-Za-z0-9.-]+(?::[0-9]+)?$/.test(env.FTP_SERVER || '')) {
         throw new Error('FTP_SERVER must be a hostname, optionally with a port');
     }
-    const base = new URL('ftp://' + env.FTP_SERVER + '/App/');
+    const ftpPath = env.FTP_PATH || '/App/';
+    if (!/^\/(?:[A-Za-z0-9_-]+\/)*$/.test(ftpPath)) {
+        throw new Error('FTP_PATH must be a directory path such as /App/ or /');
+    }
+    const base = new URL('ftp://' + env.FTP_SERVER + ftpPath);
+    const failure = (operation, name, result) => {
+        let detail = String(result.error?.message || result.stderr || '').trim();
+        if (env.FTP_PASSWORD) detail = detail.replaceAll(env.FTP_PASSWORD, '[redacted]');
+        return new Error('FTP ' + operation + ' failed: ' + name +
+            ' (curl exit ' + result.status + ', directory ' + ftpPath + ')' +
+            (detail ? ': ' + detail : ''));
+    };
     const timestamp = now.toISOString().replaceAll(':', '-');
     // Credentials go through stdin, never command-line arguments or logs.
     const escape = value => value.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('\n', '\\n').replaceAll('\r', '\\r');
@@ -87,7 +98,7 @@ export function publishFtp(contents, env, run = spawnSync, now = new Date()) {
     for (const name of files) {
         const old = invoke([url(name)], credentials);
         if (old.error || (old.status !== 0 && old.status !== 78)) {
-            throw new Error('FTP download failed: ' + name);
+            throw failure('download', name, old);
         }
         if (old.status === 0) backups.set(name, old.stdout);
     }
@@ -98,7 +109,7 @@ export function publishFtp(contents, env, run = spawnSync, now = new Date()) {
         const send = (name, body) => {
             const result = run('curl', ['--silent', '--show-error', '--fail', '--ssl-reqd', '--connect-timeout', '30', '--max-time', '600', '--config', config, '--ftp-create-dirs', '--upload-file', '-', url(name)],
                 {input: body, maxBuffer: 1024 * 1024});
-            if (result.error || result.status !== 0) throw new Error('FTP upload failed: ' + name);
+            if (result.error || result.status !== 0) throw failure('upload', name, result);
         };
         for (const [name, body] of backups) {
             send('save/' + name.replace('.geojson', '_' + timestamp + '.geojson'), body);

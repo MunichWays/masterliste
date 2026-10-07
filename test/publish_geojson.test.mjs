@@ -83,3 +83,23 @@ test('FTP rejects a server value containing a protocol or path', () => {
         assert.fail('Must reject before contacting FTP');
     }, now), /hostname/);
 });
+
+test('FTP supports accounts rooted directly in App', () => {
+    const urls = [];
+    publishFtp(contents, {...env, FTP_PATH: '/'}, (command, args) => {
+        urls.push(args.at(-1));
+        return {status: 0, stdout: Buffer.from('old')};
+    }, now);
+    assert.equal(urls[0], 'ftp://example.org/' + files[0]);
+    assert.ok(urls[5].startsWith('ftp://example.org/save/'));
+    assert.equal(urls[10], 'ftp://example.org/' + files[0]);
+});
+
+test('FTP error includes curl diagnostics and redacts the password', () => {
+    assert.throws(() => publishFtp(contents, env, () => ({status: 60, stderr: Buffer.from('TLS error password')}), now), error => {
+        assert.match(error.message, /curl exit 60/);
+        assert.match(error.message, /TLS error/);
+        assert.ok(!error.message.includes('password'));
+        return true;
+    });
+});
