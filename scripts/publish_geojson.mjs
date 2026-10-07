@@ -72,12 +72,10 @@ export async function publishDrive(contents, folder, token, request = fetch) {
 }
 
 export function publishFtp(contents, env, run = spawnSync, now = new Date()) {
-    const base = new URL(env.FTP_URL);
-    if (!['ftp:', 'ftps:'].includes(base.protocol) || base.username || base.password || base.search || base.hash) {
-        throw new Error('FTP_URL must be an ftp:// or ftps:// directory URL without credentials');
+    if (!/^[A-Za-z0-9.-]+(?::[0-9]+)?$/.test(env.FTP_SERVER || '')) {
+        throw new Error('FTP_SERVER must be a hostname, optionally with a port');
     }
-    if (!base.pathname.endsWith('/')) base.pathname += '/';
-    if (!base.pathname.endsWith('/App/')) throw new Error('FTP_URL must point to the App/ directory');
+    const base = new URL('ftp://' + env.FTP_SERVER + '/App/');
     const timestamp = now.toISOString().replaceAll(':', '-');
     // Credentials go through stdin, never command-line arguments or logs.
     const escape = value => value.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('\n', '\\n').replaceAll('\r', '\\r');
@@ -112,7 +110,7 @@ export function publishFtp(contents, env, run = spawnSync, now = new Date()) {
 }
 
 export async function main(env = process.env) {
-    for (const key of ['GOOGLE_DRIVE_UPLOAD_SERVICE_ACCOUNT_JSON', 'GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID', 'FTP_URL', 'FTP_USER', 'FTP_PASSWORD']) {
+    for (const key of ['GOOGLE_DRIVE_UPLOAD_SERVICE_ACCOUNT_JSON', 'GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID', 'FTP_SERVER', 'FTP_USER', 'FTP_PASSWORD']) {
         if (!env[key]) throw new Error('Missing configuration: ' + key);
     }
     const contents = new Map();

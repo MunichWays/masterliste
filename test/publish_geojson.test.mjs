@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {files, publishDrive, publishFtp} from '../scripts/publish_geojson.mjs';
 
 const contents = new Map(files.map(name => [name, 'new-' + name]));
-const env = {FTP_URL: 'ftp://example.org/App/', FTP_USER: 'user', FTP_PASSWORD: 'password'};
+const env = {FTP_SERVER: 'example.org', FTP_USER: 'user', FTP_PASSWORD: 'password'};
+const ftpUrl = 'ftp://' + env.FTP_SERVER + '/App/';
 const now = new Date('2026-10-07T18:00:00.000Z');
 
 test('Drive updates only current files and preserves IDs without backups', async () => {
@@ -43,13 +44,13 @@ test('FTP archives all old versions in App/save before replacing current files i
     }, now);
     assert.equal(calls.length, 15);
     for (const [i, name] of files.entries()) {
-        assert.equal(calls[i].args.at(-1), env.FTP_URL + name);
+        assert.equal(calls[i].args.at(-1), ftpUrl + name);
         const backup = calls[5 + i];
-        assert.equal(backup.args.at(-1), env.FTP_URL + 'save/' + name.replace('.geojson', '_2026-10-07T18-00-00.000Z.geojson'));
-        assert.equal(backup.options.input.toString(), 'old-' + env.FTP_URL + name);
+        assert.equal(backup.args.at(-1), ftpUrl + 'save/' + name.replace('.geojson', '_2026-10-07T18-00-00.000Z.geojson'));
+        assert.equal(backup.options.input.toString(), 'old-' + ftpUrl + name);
         assert.ok(backup.args.includes('--ftp-create-dirs'));
         const current = calls[10 + i];
-        assert.equal(current.args.at(-1), env.FTP_URL + name);
+        assert.equal(current.args.at(-1), ftpUrl + name);
         assert.equal(current.options.input, contents.get(name));
     }
     for (const call of calls) assert.ok(!call.args.join(' ').includes('password'));
@@ -77,8 +78,8 @@ test('FTP download or archive failure prevents replacing any current file', () =
     }
 });
 
-test('FTP rejects a destination outside App', () => {
-    assert.throws(() => publishFtp(contents, {...env, FTP_URL: 'ftp://example.org/download/'}, () => {
+test('FTP rejects a server value containing a protocol or path', () => {
+    assert.throws(() => publishFtp(contents, {...env, FTP_SERVER: 'ftp://example.org/download/'}, () => {
         assert.fail('Must reject before contacting FTP');
-    }, now), /App/);
+    }, now), /hostname/);
 });
