@@ -1,31 +1,78 @@
+name: Build and publish MunichWays GeoJSON
 
-name: Build MunichWays GeoJson
+on:
+  workflow_dispatch:
+  schedule:
+    # 20:00 Europe/Berlin: UTC+2 in summer, UTC+1 in winter.
+    - cron: '0 18 * * 0'
+    - cron: '0 19 * * 0'
 
-on: workflow_dispatch
+permissions:
+  contents: read
+
+concurrency:
+  group: geojson-publication
+  cancel-in-progress: false
 
 jobs:
-  build:
+  schedule:
     runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.time.outputs.run }}
     steps:
-    - uses: actions/checkout@v5
-    - name: Use Node.js 24.x
-      uses: actions/setup-node@v5
-      with:
-        node-version: 24.x
-        cache: 'npm'
-    - run: npm install
-    - shell: bash
-      env:
-        SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
-      run: |
-        echo "${SERVICE_ACCOUNT_JSON}" >> secret.json
-        node create_geojson.mjs
-    - uses: actions/upload-artifact@v6
-      with:
-        name: geojson
-        path: |
-          IST_RadlVorrangNetz_MunichWays_V20.geojson
-          IST_RadlVorrangNetz_Oberbayern_V20.geojson
-          happy_bike_level_munich.geojson
-          happy_bike_level_munich_RV.geojson
-          happy_bike_level_oberbayern.geojson
+      - id: time
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CRON: ${{ github.event.schedule }}
+        run: |
+          python3 - <<'PY'
+          import datetime, os
+          from zoneinfo import ZoneInfo
+          now = datetime.datetime.now(ZoneInfo('Europe/Berlin'))
+          # Select the correct UTC slot by offset, even if the runner starts late.
+          utc_hour = 20 - int(now.utcoffset().total_seconds() / 3600)
+          scheduled_hour = int(os.environ['CRON'].split()[1]) if os.environ['CRON'] else utc_hour
+          run = os.environ['EVENT_NAME'] != 'schedule' or scheduled_hour == utc_hour
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'run={str(run).lower()}\n')
+          PY
+  build:
+    needs: schedule
+    if: needs.schedule.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+      - name: Use Node.js 24.x
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.x
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Generate GeoJSON from fresh source data
+        env:
+          SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+        run: |
+          umask 077
+          trap 'rm -f secret.json' EXIT
+          printf '%s' "$SERVICE_ACCOUNT_JSON" > secret.json
+          node create_geojson.mjs
+      - uses: actions/upload-artifact@v6
+        with:
+          name: geojson
+          if-no-files-found: error
+          path: |
+            IST_RadlVorrangNetz_MunichWays_V20.geojson
+            IST_RadlVorrangNetz_Oberbayern_V20.geojson
+            happy_bike_level_munich.geojson
+            happy_bike_level_munich_RV.geojson
+            happy_bike_level_oberbayern.geojson
+      - name: Publish to Google Drive and FTP
+        env:
+          SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID }}
+          FTP_URL: ${{ secrets.FTP_URL }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: node scripts/publish_geojson.mjs

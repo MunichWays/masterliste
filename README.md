@@ -58,3 +58,42 @@ Tests:
 ```sh
 npm test
 ```
+
+## Automatische Veröffentlichung
+
+Der Workflow „Build and publish MunichWays GeoJSON“ läuft sonntags gegen
+20 Uhr Europe/Berlin (Sommer- und Winterzeit) sowie manuell. GitHub kann
+geplante Läufe verzögert starten. Alle fünf Dateien werden als Artefakt
+gesichert und anschließend in Google Drive und per FTP mit TLS veröffentlicht.
+In Google Drive liegen nur die aktuellen Dateien; der Workflow erzeugt dort
+keine Sicherungskopien. Bestehende Dateien werden aktualisiert, damit ihre IDs
+und Links erhalten bleiben.
+
+Auf FTP liegen die aktuellen fünf Dateien direkt in `App/` unter ihren
+ursprünglichen Namen ohne Datum. Vor dem Überschreiben werden alle vorhandenen
+Versionen in `App/save/` mit einem UTC-Zeitstempel im Namen gesichert,
+z. B. `happy_bike_level_munich_2026-10-07T18-00-00.000Z.geojson`.
+Der Zeitstempel bezeichnet den Sicherungszeitpunkt. Fehlt eine Datei beim
+Erstlauf, wird nur für diese Datei keine Sicherung angelegt. Alle Sicherungen
+müssen erfolgreich hochgeladen sein, bevor aktuelle FTP-Dateien ersetzt werden.
+`App/save/` wird bei Bedarf angelegt; bestehende Sicherungen bleiben erhalten.
+
+Repository-Konfiguration unter Settings → Secrets and variables → Actions:
+
+- Secret `SERVICE_ACCOUNT_JSON`: bestehendes Google-Servicekonto mit
+  Lesezugriff auf die Quelldaten und Schreibzugriff auf den Download-Ordner.
+- Variable `GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID`: ID des Google-Drive-Download-Ordners
+  (laut Issue #4: `1u4Q1dyMuB1n0j2_YgQxiK_xfLVC1VYE9`; vor Einrichtung prüfen).
+- Secrets `FTP_URL` (muss auf das Verzeichnis `App/` zeigen, z. B. `ftp://example.org/App/`),
+  `FTP_USER` und `FTP_PASSWORD`. Der Server muss TLS unterstützen.
+
+Fehlende Konfiguration oder Uploadfehler lassen den Workflow fehlschlagen;
+das Build-Artefakt bleibt verfügbar. Die beiden Ziele werden nacheinander
+aktualisiert; bei einem Fehler kann ein Ziel bereits aktualisiert sein.
+Das Servicekonto benötigt einen Shared Drive oder eine passende Google-Workspace-
+Konfiguration mit Speicherberechtigung, um neue Dateien anzulegen.
+
+Der npm-Cache enthält nur heruntergeladene Abhängigkeiten und wird über
+`package-lock.json` versioniert. Er muss nicht gelöscht werden. Der lokale
+`cache/` für Drive-Quelldaten und `map.osm.pbf` werden im Workflow nicht
+zwischengespeichert und daher bei jedem Lauf frisch geladen.
