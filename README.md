@@ -84,8 +84,12 @@ Repository-Konfiguration unter Settings → Secrets and variables → Actions:
   Lesezugriff auf die Quelldaten und Schreibzugriff auf den Download-Ordner.
 - Variable `GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID`: ID des Google-Drive-Download-Ordners
   (laut Issue #4: `1u4Q1dyMuB1n0j2_YgQxiK_xfLVC1VYE9`; vor Einrichtung prüfen).
-- Secrets `FTP_URL` (muss auf das Verzeichnis `App/` zeigen, z. B. `ftp://example.org/App/`),
-  `FTP_USER` und `FTP_PASSWORD`. Der Server muss TLS unterstützen.
+- Variablen `FTP_URL` (muss auf das Verzeichnis `App/` zeigen, z. B. `ftp://example.org/App/`)
+  und `FTP_USER`; Secret `FTP_PASSWORD`. Der Server muss TLS unterstützen.
+
+Die Variablen und Secrets können in den Organisationseinstellungen von MunichWays
+unter Secrets and variables → Actions liegen. Die Zugriffsrichtlinie muss das
+Repository `masterliste` einschließen.
 
 Fehlende Konfiguration oder Uploadfehler lassen den Workflow fehlschlagen;
 das Build-Artefakt bleibt verfügbar. Die beiden Ziele werden nacheinander
