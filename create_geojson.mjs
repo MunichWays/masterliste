@@ -20,7 +20,7 @@ const SHEET_NAME = 'webapp';
 const MUNICH_DISTRICTS_URL = 'https://geoportal.muenchen.de/geoserver/gsm_wfs/ows?outputFormat=application%2Fjson&request=GetFeature&service=WFS&typeName=gsm_wfs%3Avablock_stadtbezirk&version=1.0.0&srsName=EPSG%3A4326';
 
 const header = JSON.stringify({"alg":"RS256","typ":"JWT"});
-const b64Header = Buffer.from(header, 'utf-8').toString('base64');
+const b64Header = Buffer.from(header, 'utf-8').toString('base64url');
 
 const timestamp = Math.floor(Date.now() / 1000);
 const scope = ["https://www.googleapis.com/auth/spreadsheets","https://www.googleapis.com/auth/drive"].join(" ")
@@ -36,7 +36,7 @@ const b64Payload = Buffer.from(payload, "utf-8").toString('base64');
 const signer = crypto.createSign("RSA-SHA256");
 signer.update(`${b64Header}.${b64Payload}`);
 const privateKey = crypto.createPrivateKey(privateKeyStr);
-const b64Signature = signer.sign({key:privateKey,padding:crypto.constants.RSA_PKCS1_PADDING}, "base64").replace("+", "-").replace("/", "_");;
+const b64Signature = signer.sign({key:privateKey,padding:crypto.constants.RSA_PKCS1_PADDING}, "base64url");
 
 const assertion = `${b64Header}.${b64Payload}.${b64Signature}`;
 const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
