@@ -43,7 +43,8 @@ vom WFS des GeodatenService München und werden in WGS84 geladen.
 Das bestehende Feld `osm_smoothness` der vollständigen V20-Exporte wird mit
 `cycleway:smoothness` befüllt, falls vorhanden, sonst mit `smoothness`.
 Entsprechend verwendet `osm_width` den Wert von `cycleway:width`, falls vorhanden,
-sonst `width`. Zusätzliche Felder für diese Radweg-Tags werden nicht ausgegeben.
+sonst `width`. `osm_surface` verwendet analog `cycleway:surface`, sonst `surface`.
+Zusätzliche Felder für diese Radweg-Tags werden nicht ausgegeben.
 
 Eine vorhandene V20-Datei kann ohne Google-Zugang und OSM-Download lokal
 konvertiert werden:

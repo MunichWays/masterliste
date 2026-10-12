@@ -322,7 +322,7 @@ for (const way of bicycleWays) {
             osm_name: way.tags["name"],
             osm_class_bicycle: way.tags["class:bicycle"],
             osm_smoothness: way.tags["cycleway:smoothness"] ?? way.tags["smoothness"],
-            osm_surface: way.tags["surface"],
+            osm_surface: way.tags["cycleway:surface"] ?? way.tags["surface"],
             osm_bicycle: way.tags["bicycle"],
             osm_highway: way.tags["highway"],
             osm_lit: way.tags["lit"],
