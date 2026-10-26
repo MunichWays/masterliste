@@ -3,6 +3,7 @@ import osmRead from 'osm-read';
 import crypto from 'crypto';
 import {buildHappyBikeLevelGeoJson} from './happy_bike_level.mjs';
 import {buildMunichGeoJson} from './munich_geojson.mjs';
+import {mapCyclingAttributes} from './cycling_attributes.mjs';
 
 if (!existsSync("secret.json")) {
     console.log("File secret.json is not present, please create it for an appropriate service account in Google Cloud Console.");
@@ -321,12 +322,10 @@ for (const way of bicycleWays) {
             osm_id: way.id,
             osm_name: way.tags["name"],
             osm_class_bicycle: way.tags["class:bicycle"],
-            osm_smoothness: way.tags["cycleway:smoothness"] ?? way.tags["smoothness"],
-            osm_surface: way.tags["cycleway:surface"] ?? way.tags["surface"],
+            ...mapCyclingAttributes(way.tags),
             osm_bicycle: way.tags["bicycle"],
             osm_highway: way.tags["highway"],
             osm_lit: way.tags["lit"],
-            osm_width: way.tags["cycleway:width"] ?? way.tags["width"],
             osm_access: way.tags["access"],
             ...way.munichways.length > 0 ? {
                 munichways_id: mwInfos.map(info => info.id).join(","),
