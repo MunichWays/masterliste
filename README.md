@@ -44,7 +44,28 @@ Das bestehende Feld `osm_smoothness` der vollständigen V20-Exporte wird mit
 `cycleway:smoothness` befüllt, falls vorhanden, sonst mit `smoothness`.
 Entsprechend verwendet `osm_width` den Wert von `cycleway:width`, falls vorhanden,
 sonst `width`. `osm_surface` verwendet analog `cycleway:surface`, sonst `surface`.
-Zusätzliche Felder für diese Radweg-Tags werden nicht ausgegeben.
+Seitenspezifische Angaben werden ebenfalls berücksichtigt: Für jede physische
+OSM-Way-Seite gilt `cycleway:<Seite>:<Attribut>` vor dem Kompatibilitätsalias
+`cycleway:<Attribut>:<Seite>`, dann `cycleway:both:<Attribut>` bzw.
+`cycleway:<Attribut>:both`, `cycleway:<Attribut>` und den allgemeinen Tags.
+Leere Werte fallen zur nächsten Angabe zurück; unbekannte nichtleere Werte
+werden unverändert übernommen. `cycleway:<Seite>=no/separate` verhindert die
+Übernahme dortiger Radwegattribute auf die Fahrbahn. `surface:left/right`,
+`smoothness:left/right` und `width:left/right` ohne Präfix werden als physische
+Seitenangaben angezeigt, nicht als Fahrtrichtung interpretiert.
+
+Sind beide Seiten gleich, bleibt der einzelne Wert erhalten. Unterschiedliche
+Werte stehen im bestehenden Feld, beispielsweise
+`osm_surface: "links: sett; rechts: asphalt"` an der Gerner Straße. Ist nur eine
+Seite bekannt, steht dort etwa `rechts: asphalt`. Bei vorhandenen Radwegbreiten
+wird eine fehlende Gegenseitenbreite nicht durch die Gesamtfahrbahnbreite ersetzt.
+Ohne Radwegbreite bleibt der bisherige allgemeine Breitenwert erhalten.
+
+Die Mapping-Oberfläche zeigt dieselben Werte in den bestehenden Zeilen
+`smoothness`, `surface` und `width`; die ursprünglichen OSM-Tags werden weiterhin
+unverändert in den Zuordnungsdateien gespeichert. Es gibt keine zusätzlichen
+Spalten, GeoJSON-Felder oder Eingabefelder. Die schlanken Happy-Bike-Level-Exporte
+bleiben unverändert.
 
 Eine vorhandene V20-Datei kann ohne Google-Zugang und OSM-Download lokal
 konvertiert werden:

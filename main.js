@@ -1,4 +1,5 @@
 import * as turf from '@turf/turf';
+import {displayOsmTags} from './cycling_attributes.mjs';
 import OlMap from 'ol/Map';
 import View from 'ol/View';
 import TileLayer from 'ol/layer/Tile';
@@ -242,10 +243,11 @@ map.on('pointermove', (e) => {
         if (feature.get('matched') !== undefined && feature.get('tags')) {
             hoverElement.innerHTML += `<h3>Element(e) unter Maus</h3>
       <b>Way #${feature.get('way')}</b><br />`;
-            const tags = feature.get('tags');
-            console.log(tags);
-            for (const key in tags) {
-                hoverElement.innerHTML += `<b>${key}</b>: ${tags[key]}<br />`;
+            const tags = displayOsmTags(feature.get('tags'));
+            for (const [key, value] of Object.entries(tags)) {
+                const label = document.createElement("b");
+                label.textContent = key;
+                hoverElement.append(label, document.createTextNode(`: ${value}`), document.createElement("br"));
             }
             hoverElement.innerHTML += `<hr />`;
         }
